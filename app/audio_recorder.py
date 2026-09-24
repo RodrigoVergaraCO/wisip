@@ -3,6 +3,7 @@ import threading
 import numpy as np
 import sounddevice as sd
 
+from . import audio_devices
 from . import config
 
 # Umbral de "silencio digital": peak float32 equivalente a ±16 en int16. Un
@@ -79,6 +80,7 @@ class AudioRecorder:
                 self._monitor_stream = sd.InputStream(
                     samplerate=config.SAMPLE_RATE, channels=config.CHANNELS,
                     dtype="int16", device=self._device, callback=self._monitor_callback,
+                    extra_settings=audio_devices.stream_extra_settings(self._device),
                 )
                 self._monitor_stream.start()
                 self._current_level = 0.0
@@ -145,6 +147,7 @@ class AudioRecorder:
                     dtype="int16",
                     device=self._device,
                     callback=self._callback,
+                    extra_settings=audio_devices.stream_extra_settings(self._device),
                 )
                 self._stream.start()
                 self._recording = True

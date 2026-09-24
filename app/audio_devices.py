@@ -11,7 +11,12 @@ enchufar/desenchufar dispositivos) y se resuelve a índice en cada arranque.
 import sounddevice as sd
 
 DEFAULT_LABEL = "Predeterminado del sistema"
+# Para LISTAR: WASAPI primero (nombres completos).
 _PREFERRED_HOSTAPIS = ("Windows WASAPI", "MME", "Windows DirectSound")
+# Para ABRIR el stream a 16 kHz: MME y DirectSound remuestrean solos; WASAPI
+# en modo compartido exige la frecuencia del mezclador (48 kHz en la Razer:
+# "Invalid sample rate", verificado 2026-09-23) salvo con auto_convert.
+_STREAM_HOSTAPIS = ("MME", "Windows DirectSound", "Windows WASAPI")
 
 
 def _hostapi_index(name_fragment: str) -> int | None:
@@ -118,19 +123,35 @@ def resolve_device_index(name: str | None) -> int | None:
             api_name = str(sd.query_hostapis()[d["hostapi"]].get("name", ""))
         except Exception:
             api_name = ""
-        for r, frag in enumerate(_PREFERRED_HOSTAPIS):
+        for r, frag in enumerate(_STREAM_HOSTAPIS):
             if frag.lower() in api_name.lower():
                 api_rank = r
                 break
         else:
-            api_rank = len(_PREFERRED_HOSTAPIS)
+            api_rank = len(_STREAM_HOSTAPIS)
         ranked.append((api_rank, score, d["index"]))
     if not ranked:
         return None
-    # Primero el mejor host API (WASAPI: nombres completos), luego el nombre
-    # más exacto. Así un nombre truncado por MME resuelve al micro de WASAPI.
+    # Primero el host API que abre a 16 kHz sin problemas (MME), luego el
+    # nombre más exacto. El nombre completo de WASAPI casa por prefijo con el
+    # truncado de MME.
     ranked.sort()
     return ranked[0][2]
+
+
+def stream_extra_settings(index):
+    """`extra_settings` para sd.InputStream: en WASAPI activa la conversión
+    automática de frecuencia; en el resto, None."""
+    if index is None:
+        return None
+    try:
+        d = sd.query_devices(index)
+        api = str(sd.query_hostapis()[int(d["hostapi"])].get("name", ""))
+        if "wasapi" in api.lower():
+            return sd.WasapiSettings(auto_convert=True)
+    except Exception:
+        pass
+    return None
 
 
 def device_label(name: str | None) -> str:

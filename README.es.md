@@ -80,8 +80,8 @@ python main.py
 
 La primera ejecución descarga el modelo a `~/.cache/huggingface/hub` (`small`
 ≈ 480 MB en CPU; `large-v3-turbo` ≈ 1,6 GB se elige solo cuando detecta una
-GPU que funciona). El hotkey por defecto es <kbd>|</kbd> (la tecla a la
-izquierda del <kbd>1</kbd> en teclado ES-LA); se cambia desde la app.
+GPU que funciona). El atajo por defecto es <kbd>Ctrl</kbd> + <kbd>Win</kbd> + <kbd>Espacio</kbd>
+(mantener para hablar); se cambia desde la app.
 
 > Si abres `main.py` con doble clic, Wisip se relanza con el intérprete del
 > venv para encontrar las librerías CUDA. `WISIP_NO_VENV_REEXEC=1` desactiva
@@ -114,7 +114,7 @@ dictar   →  logs/dictados-YYYY-MM.jsonl (+ WAV si es sospechoso)
 
 Cada guarda del código cita el dictado real que la motivó. Los validadores
 corren sin cargar el modelo: `check_replacements`, `check_normalizer`,
-`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`, `check_setup_assets`, `check_audio_devices`.
+`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`, `check_setup_assets`, `check_audio_devices`, `check_license`.
 
 ## Requisitos
 
@@ -128,6 +128,15 @@ Set de evaluación medido, abstracción de motor (Parakeet vía ONNX /
 whisper.cpp Vulkan para AMD e Intel), capa opcional de limpieza con LLM local,
 selector de idioma por dictado y UI en inglés. Detalle en
 [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Modelo de licencia (el producto)
+
+El código es GPL-3.0. Los instaladores se venden como licencia de por vida
+por equipo: 30 días de prueba gratis y luego una clave de la tienda activa un
+PC a través de la License API de Lemon Squeezy. Se desactiva desde la pestaña
+Licencia, o simplemente desinstalando, para pasar la clave a otro equipo.
+Se revalida cada 30 días y tolera 90 días sin internet. Sin cuenta, sin
+telemetría.
 
 ## Licencia
 

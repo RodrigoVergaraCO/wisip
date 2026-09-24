@@ -9,6 +9,7 @@ import customtkinter as ctk
 from . import audio_devices
 from . import config
 from . import themes
+from .onboarding import pretty_hotkey
 
 try:
     from PIL import Image, ImageTk
@@ -99,6 +100,10 @@ class AppUI:
         on_gpu_pack_install=None,
         # Selector de micrófono (2.8.0). Opcional.
         on_input_device_change=None,
+        # Pestaña Licencia (2.9.0). Opcionales.
+        on_license_activate=None,
+        on_license_deactivate=None,
+        buy_url: str = "",
     ):
         self.on_model_change = on_model_change
         self.on_language_change = on_language_change
@@ -129,6 +134,10 @@ class AppUI:
         self.on_vocab_ignore = on_vocab_ignore
         self.on_gpu_pack_install = on_gpu_pack_install
         self.on_input_device_change = on_input_device_change
+        self.on_license_activate = on_license_activate
+        self.on_license_deactivate = on_license_deactivate
+        self._buy_url = buy_url or config.BUY_URL
+        self._last_license: dict | None = None
         self._gpu_pack_btn_text: str | None = None
 
         # Guard para evitar disparar on_model_change cuando lo cambiamos por código.
@@ -460,10 +469,12 @@ class AppUI:
         self.tabs.add("Transcribe")
         self.tabs.add("Vocabulario")
         self.tabs.add("Historial")
+        self.tabs.add("Licencia")
 
         self._build_transcribe_tab(self.tabs.tab("Transcribe"))
         self._build_vocab_tab(self.tabs.tab("Vocabulario"))
         self._build_history_tab(self.tabs.tab("Historial"))
+        self._build_license_tab(self.tabs.tab("Licencia"))
 
     # ---------- Tab: Transcribe ----------
     def _build_transcribe_tab(self, parent):
@@ -483,7 +494,7 @@ class AppUI:
         left_block.pack(side="left", fill="x", expand=True)
         self.hotkey_main_label = ctk.CTkLabel(
             left_block,
-            text=f"Mantén {self._hotkey_label.upper()} para grabar",
+            text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
             font=self._fnt(15, bold=True), text_color=TEXT, anchor="w",
         )
         self.hotkey_main_label.pack(anchor="w")
@@ -505,6 +516,24 @@ class AppUI:
             corner_radius=24,
         )
         self.rebind_btn.pack(side="right", padx=(8, 0))
+
+        # Cómo funciona (3 pasos; para quien abre la app por primera vez).
+        how = ctk.CTkFrame(
+            scroll, fg_color=BG_SURFACE_LOW,
+            border_color=BORDER, border_width=1, corner_radius=6,
+        )
+        how.pack(fill="x", padx=4, pady=(0, 12))
+        ctk.CTkLabel(
+            how, text="CÓMO FUNCIONA",
+            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT, anchor="w",
+        ).pack(anchor="w", padx=12, pady=(8, 2))
+        ctk.CTkLabel(
+            how,
+            text=("1. Pon el cursor donde quieras escribir (chat, correo, editor).\n"
+                  "2. Mantén la tecla de dictado y habla con normalidad.\n"
+                  "3. Suéltala: el texto se escribe ahí mismo. Todo ocurre en tu PC, sin internet."),
+            font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left",
+        ).pack(anchor="w", padx=12, pady=(0, 8))
 
         # Grid de configuración.
         cfg = ctk.CTkFrame(scroll, fg_color="transparent")
@@ -745,12 +774,23 @@ class AppUI:
         )
         self.toggle_btn.pack(fill="x", padx=4, pady=(4, 12))
 
-        # Prompt editor.
+        # Ajustes avanzados, plegados: el prompt inicial confunde a quien no
+        # sabe qué es Whisper (feedback del usuario, 2026-09-23).
+        self._adv_open = False
+        self.adv_btn = ctk.CTkButton(
+            scroll, text="▸  AJUSTES AVANZADOS (prompt inicial de Whisper)",
+            command=self._toggle_advanced, anchor="w",
+            fg_color="transparent", hover_color=BG_SURFACE_HIGH,
+            text_color=TEXT_MUTED, font=self._fnt(10, bold=True), height=28, corner_radius=4,
+        )
+        self.adv_btn.pack(fill="x", padx=4, pady=(0, 6))
+
+        # Prompt editor (oculto hasta abrir AVANZADO).
         prompt_card = ctk.CTkFrame(
             scroll, fg_color=BG_SURFACE,
             border_color=BORDER, border_width=1, corner_radius=6,
         )
-        prompt_card.pack(fill="x", padx=4, pady=(0, 12))
+        self._prompt_card = prompt_card
 
         ph = ctk.CTkFrame(prompt_card, fg_color="transparent")
         ph.pack(fill="x", padx=12, pady=(10, 4))
@@ -1179,6 +1219,127 @@ class AppUI:
         )
         self.history_listbox.pack(fill="both", expand=True, padx=8, pady=8)
 
+    # ---------- Tab: Licencia ----------
+    def _build_license_tab(self, parent):
+        wrap = ctk.CTkFrame(parent, fg_color="transparent")
+        wrap.pack(fill="both", expand=True, padx=12, pady=12)
+
+        card = ctk.CTkFrame(wrap, fg_color=BG_SURFACE, border_color=BORDER,
+                            border_width=1, corner_radius=6)
+        card.pack(fill="x", pady=(0, 12))
+        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner.pack(fill="x", padx=16, pady=14)
+        self.license_state_label = ctk.CTkLabel(
+            inner, text="LICENCIA", font=self._fnt(15, bold=True), text_color=TEXT, anchor="w",
+        )
+        self.license_state_label.pack(anchor="w")
+        self.license_msg_label = ctk.CTkLabel(
+            inner, text="", font=self._fnt(11), text_color=TEXT_MUTED, anchor="w",
+            justify="left", wraplength=620,
+        )
+        self.license_msg_label.pack(anchor="w", pady=(2, 0))
+        self.license_detail_label = ctk.CTkLabel(
+            inner, text="", font=self._fnt_mono(11), text_color=TEXT_VARIANT, anchor="w",
+            justify="left",
+        )
+        self.license_detail_label.pack(anchor="w", pady=(6, 0))
+
+        ctk.CTkLabel(
+            wrap, text="CLAVE DE LICENCIA", font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
+        ).pack(anchor="w", pady=(0, 4))
+        row = ctk.CTkFrame(wrap, fg_color="transparent")
+        row.pack(fill="x")
+        self.license_entry = ctk.CTkEntry(
+            row, placeholder_text="XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX",
+            fg_color=BG_INPUT, border_color=BORDER, text_color=TEXT,
+            font=self._fnt_mono(12), height=34, corner_radius=4,
+        )
+        self.license_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        self.license_activate_btn = ctk.CTkButton(
+            row, text="ACTIVAR", command=self._license_activate_clicked,
+            fg_color=PRIMARY_BTN, hover_color=PRIMARY_BTN_HOVER, text_color=PRIMARY_BTN_TEXT,
+            font=self._fnt(11, bold=True), width=110, height=34, corner_radius=4,
+        )
+        self.license_activate_btn.pack(side="left")
+        self.license_result_label = ctk.CTkLabel(
+            wrap, text="", font=self._fnt(11), text_color=TEXT_MUTED, anchor="w",
+            justify="left", wraplength=620,
+        )
+        self.license_result_label.pack(anchor="w", pady=(6, 12))
+
+        btns = ctk.CTkFrame(wrap, fg_color="transparent")
+        btns.pack(fill="x")
+        self.license_buy_btn = ctk.CTkButton(
+            btns, text="COMPRAR LICENCIA DE POR VIDA", command=self._license_buy_clicked,
+            fg_color=ACCENT_CONTAINER, hover_color=ACCENT_CONTAINER_HOVER, text_color=TEXT,
+            font=self._fnt(11, bold=True), height=32, corner_radius=4,
+        )
+        self.license_buy_btn.pack(side="left", padx=(0, 8))
+        self.license_deactivate_btn = ctk.CTkButton(
+            btns, text="DESACTIVAR EN ESTE EQUIPO", command=self._license_deactivate_clicked,
+            fg_color=BG_SURFACE_LOW, hover_color=BG_SURFACE_HIGHEST, border_color=BORDER,
+            border_width=1, text_color=ERROR, font=self._fnt(11, bold=True), height=32, corner_radius=4,
+        )
+        self.license_deactivate_btn.pack(side="left")
+        ctk.CTkLabel(
+            wrap, text="Una licencia vale para un equipo a la vez. Para pasarla a otro PC, "
+                       "desactívala aquí (o desinstala Wisip) y actívala en el nuevo.",
+            font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left", wraplength=620,
+        ).pack(anchor="w", pady=(12, 0))
+        if self._last_license:
+            self._apply_license_status(self._last_license)
+
+    def _license_activate_clicked(self):
+        key = (self.license_entry.get() or "").strip()
+        self.license_result_label.configure(text="Activando…", text_color=TEXT_MUTED)
+        self.license_activate_btn.configure(state="disabled")
+        if self.on_license_activate:
+            self.on_license_activate(key)
+
+    def _license_deactivate_clicked(self):
+        self.license_result_label.configure(text="Desactivando…", text_color=TEXT_MUTED)
+        if self.on_license_deactivate:
+            self.on_license_deactivate()
+
+    def _license_buy_clicked(self):
+        try:
+            import webbrowser
+            webbrowser.open(self._buy_url)
+        except Exception:
+            pass
+
+    def _apply_license_status(self, st: dict):
+        state = st.get("state", "")
+        titles = {
+            "licensed": ("LICENCIA ACTIVA", PRIMARY),
+            "trial": (f"PRUEBA GRATUITA · {st.get('days_left', 0)} DÍAS RESTANTES", SECONDARY),
+            "trial_expired": ("PRUEBA TERMINADA", ERROR),
+            "invalid": ("LICENCIA NO VÁLIDA", ERROR),
+        }
+        title, color = titles.get(state, ("LICENCIA", TEXT))
+        try:
+            self.license_state_label.configure(text=title, text_color=color)
+            self.license_msg_label.configure(text=st.get("message", ""))
+            detail = f"Equipo: {st.get('instance', '')}"
+            if st.get("key_masked"):
+                detail += f"\nClave: {st.get('key_masked')}"
+            if st.get("email"):
+                detail += f"\nComprada por: {st.get('email')}"
+            self.license_detail_label.configure(text=detail)
+            licensed = state == "licensed"
+            if licensed:
+                self.license_deactivate_btn.pack(side="left")
+            else:
+                self.license_deactivate_btn.pack_forget()
+        except Exception:
+            pass
+
+    def set_license_status(self, st: dict):
+        self._ui_queue.put(("license_status", dict(st or {})))
+
+    def set_license_result(self, text: str, error: bool = False):
+        self._ui_queue.put(("license_result", (text, bool(error))))
+
     # ---------- helpers de construcción ----------
     def _labeled_dropdown(self, parent, label_text, *, row, col, colspan=1,
                           values, initial, command, attr_name):
@@ -1331,6 +1492,18 @@ class AppUI:
             "loading": SECONDARY,
             "error": ERROR,
         }
+
+    def _toggle_advanced(self):
+        self._adv_open = not self._adv_open
+        try:
+            if self._adv_open:
+                self._prompt_card.pack(fill="x", padx=4, pady=(0, 12), after=self.adv_btn)
+                self.adv_btn.configure(text="▾  AJUSTES AVANZADOS (prompt inicial de Whisper)")
+            else:
+                self._prompt_card.pack_forget()
+                self.adv_btn.configure(text="▸  AJUSTES AVANZADOS (prompt inicial de Whisper)")
+        except Exception:
+            pass
 
     def _input_device_changed(self, label):
         label = (label or "").replace("  (no conectado)", "")
@@ -1549,7 +1722,7 @@ class AppUI:
                     self.rebind_btn.configure(text="⏺", text_color=SECONDARY)
                 else:
                     self.hotkey_main_label.configure(
-                        text=f"Mantén {self._hotkey_label.upper()} para grabar",
+                        text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
                         text_color=TEXT,
                     )
                     self.hotkey_label_widget.configure(
@@ -1570,7 +1743,7 @@ class AppUI:
         def _do():
             try:
                 self.hotkey_main_label.configure(
-                    text=f"Mantén {self._hotkey_label.upper()} para grabar",
+                    text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
                 )
             except Exception:
                 pass
@@ -1674,6 +1847,19 @@ class AppUI:
                     self._last_btn_text = payload
                     prefix = self._BTN_ICONS.get(payload, "")
                     self.toggle_btn.configure(text=prefix + payload)
+                elif kind == "license_status":
+                    self._last_license = payload
+                    self._apply_license_status(payload)
+                elif kind == "license_result":
+                    text, err = payload
+                    try:
+                        self.license_result_label.configure(
+                            text=text, text_color=ERROR if err else PRIMARY)
+                        self.license_activate_btn.configure(state="normal")
+                        if not err:
+                            self.license_entry.delete(0, "end")
+                    except Exception:
+                        pass
                 elif kind == "gpu_pack":
                     self._gpu_pack_btn_text = payload
                     try:

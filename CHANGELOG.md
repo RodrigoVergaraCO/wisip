@@ -3,6 +3,29 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.9.0 — 2026-09-24
+
+- **Licencias** (`app/license.py`): prueba gratuita de 30 días desde el primer
+  arranque; después la app abre pero no graba hasta activar una clave. Clave
+  de por vida atada a un equipo mediante la License API de Lemon Squeezy
+  (activar / validar / desactivar; límite de activaciones lo fija el
+  producto en la tienda). Revalidación cada 30 días con 90 días de gracia sin
+  internet. Pestaña **Licencia** (estado, activar, desactivar, comprar).
+  `Wisip.exe --deactivate-license` libera la clave y el desinstalador lo
+  ejecuta solo ("transferible al desinstalar"). Validador
+  `scripts/check_license.py` con servidor simulado.
+- **Tecla por defecto: Ctrl + Win + Espacio** (la misma de Wispr Flow en
+  Windows) para instalaciones nuevas; "|" no existe en muchos teclados. Las
+  instalaciones existentes conservan su tecla. Los atajos se muestran
+  legibles ("Ctrl + Win + Espacio").
+- Asistente inicial (feedback de la primera prueba real): texto del paso 1
+  ya no se corta y explica en 3 pasos cómo funciona; el medidor del
+  micrófono funciona (los micros vía WASAPI rechazaban 16 kHz: ahora se
+  abren por MME o con conversión automática) y avisa si el micro no abre;
+  el paso final aclara que todo se puede cambiar después.
+- Pestaña Transcribe: tarjeta "Cómo funciona" y el prompt inicial de Whisper
+  queda plegado bajo "Ajustes avanzados".
+
 ## 2.8.0 — 2026-09-24
 
 - **Asistente de primer arranque** (`app/onboarding.py`): bienvenida y

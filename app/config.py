@@ -50,6 +50,17 @@ NVIDIA_WHEELS = (
 GPU_PACK_EXCLUDE_DLLS = ("cudnn_adv64", "nvblas")
 # Tamaño aproximado de la descarga (para el mensaje al usuario).
 GPU_PACK_DOWNLOAD_MB = 1200
+# ─── Licencias (2.9.0): Lemon Squeezy License API ──────────────────────
+# Endpoints públicos (no requieren API key). Cambiable en pruebas con la
+# variable de entorno WISIP_LICENSE_API.
+LICENSE_API_BASE = "https://api.lemonsqueezy.com/v1/licenses"
+TRIAL_DAYS = 30                    # prueba gratuita desde el primer arranque
+LICENSE_REVALIDATE_DAYS = 30       # cada cuánto se consulta /validate
+LICENSE_OFFLINE_GRACE_DAYS = 90    # sin poder validar más de esto → bloquea
+# Página de compra (ponerla cuando exista la tienda; hasta entonces el botón
+# lleva al repositorio).
+BUY_URL = "https://github.com/acropolifamily-web/wisip#license"
+
 # Tamaño aproximado de cada modelo (descarga inicial).
 MODEL_DOWNLOAD_MB = {
     "tiny": 75, "base": 145, "small": 480, "medium": 1500,
@@ -629,7 +640,10 @@ CHANNELS = 1
 # un switch "Atajo activo" en la ventana principal de la app.
 # Para cambiar el hotkey: edita "hotkey" en %APPDATA%\local-voice-typer\app_settings.json
 # (ej. "f9", "f10", "pause", "capslock", "ctrl+shift+space").
-DEFAULT_HOTKEY = "|"
+# Ctrl + Win + Espacio: existe en todos los teclados y es el mismo atajo que
+# usa Wispr Flow en Windows (antes "|", que falta en muchos teclados). Las
+# instalaciones existentes conservan su tecla guardada.
+DEFAULT_HOTKEY = "ctrl+windows+space"
 
 # Modos de pegado
 PASTE_MODE_PASTE = "paste"

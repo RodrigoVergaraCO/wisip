@@ -115,8 +115,10 @@ algo entiende que en una frase sobre proxies "prótesis" no encaja.
 - ~~Selector de micrófono en la UI y asistente de primer arranque.~~ **Hecho
   en 2.8.0 (2026-09-24).**
 - Releases en GitHub con los instaladores CPU y GPU (hoy solo locales).
-- Firma de código (SmartScreen), auto-update, claves de licencia
-  (Lemon Squeezy / Gumroad).
+- ~~Claves de licencia (Lemon Squeezy).~~ **Cliente hecho en 2.9.0
+  (2026-09-24)**: falta crear la tienda/producto en Lemon Squeezy (límite de
+  activaciones = 1) y poner `BUY_URL` en `config.py`.
+- Firma de código (SmartScreen), auto-update.
 - Sitio de una página con demo en vídeo.
 
 ---

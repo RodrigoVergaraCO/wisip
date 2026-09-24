@@ -7,7 +7,7 @@
 ; Resultado: EXE\installer\Wisip-Setup-1.0.0.exe
 
 #define MyAppName "Wisip"
-#define MyAppVersion "2.8.0"
+#define MyAppVersion "2.9.0"
 #define MyAppPublisher "Wisip"
 #define MyAppExeName "Wisip.exe"
 ; Desde la 2.7.0 hay UN solo instalador liviano (~70 MB): las DLLs CUDA se
@@ -72,6 +72,11 @@ Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs 
 Name: "{autoprograms}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"
 Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
 
+[UninstallRun]
+; Libera la licencia de este equipo antes de borrar los archivos, para que la
+; clave se pueda activar en otro PC ("transferible al desinstalar").
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--deactivate-license"; Flags: runhidden waituntilterminated runasoriginaluser; RunOnceId: "WisipDeactivateLicense"
+
 [Run]
 ; Wisip ya NO se compila con --uac-admin: corre en modo usuario.
 ; `runasoriginaluser` lanza la app como el usuario normal (no elevado), aunque
@@ -126,4 +131,10 @@ function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
   CloseRunningWisip();
   Result := '';
+end;
+
+function InitializeUninstall(): Boolean;
+begin
+  CloseRunningWisip();
+  Result := True;
 end;

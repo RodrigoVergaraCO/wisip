@@ -58,6 +58,7 @@ from app import audio_devices
 from app import setup_assets
 from app import themes
 from app import vocab
+from app.license import LicenseManager
 from app.onboarding import OnboardingWizard, default_result as onboarding_defaults
 from app.setup_window import SetupWindow
 from app.audio_recorder import AudioRecorder, is_digital_silence
@@ -96,6 +97,7 @@ class Controller:
         self.history = History(on_log=buf_log)
         self.dictation_log = DictationLog(on_log=buf_log)
         self.beeps = Beeps(enabled=bool(self.settings.get("beep_enabled")), on_log=buf_log)
+        self.license = LicenseManager(self.settings, on_log=buf_log)
 
         # UI principal
         self.ui = AppUI(
@@ -128,6 +130,8 @@ class Controller:
             on_vocab_ignore=self._on_vocab_ignore,
             on_gpu_pack_install=self._on_gpu_pack_install,
             on_input_device_change=self._on_input_device_change,
+            on_license_activate=self._on_license_activate,
+            on_license_deactivate=self._on_license_deactivate,
             initial_settings=self.settings.all(),
             hotkey_label=self.settings.get("hotkey"),
         )
@@ -136,6 +140,7 @@ class Controller:
             self._log(m)
         self._pending_logs = None
         self.settings.on_log = self._log
+        self.license.on_log = self._log
         self.replacements.on_log = self._log
         self.history.on_log = self._log
         self.dictation_log.on_log = self._log
@@ -365,6 +370,11 @@ class Controller:
 
     def _preload_default_model(self):
         try:
+            self.license.ensure_trial_started()
+            self.ui.set_license_status(self.license.status())
+        except Exception as e:
+            self._log(f"[licencia] estado inicial falló: {e}")
+        try:
             self._maybe_run_onboarding()
         except Exception as e:
             self._log(f"[onboarding] falló: {e}")
@@ -379,6 +389,42 @@ class Controller:
             self.beeps.error()
             return
         self._load_model_now(self.settings.get("model"))
+        try:
+            self.license.revalidate_if_due()
+            self.ui.set_license_status(self.license.status())
+        except Exception as e:
+            self._log(f"[licencia] revalidación falló: {e}")
+
+    # ─── Licencias (2.9.0) ───
+
+    def _license_blocked_feedback(self):
+        st = self.license.status()
+        self._log(f"[licencia] dictado bloqueado: {st.get('message')}")
+        self.beeps.error()
+        try:
+            self.floating_bar.show_error_and_hide("Activa tu licencia", delay_ms=2600)
+        except Exception:
+            pass
+        self.ui.set_license_status(st)
+        try:
+            self.ui.show_from_tray()
+            self.ui.run_on_ui_thread(lambda: self.ui.tabs.set("Licencia"))
+        except Exception:
+            pass
+
+    def _on_license_activate(self, key: str):
+        def worker():
+            ok, msg = self.license.activate(key)
+            self.ui.set_license_result(msg, error=not ok)
+            self.ui.set_license_status(self.license.status())
+        threading.Thread(target=worker, daemon=True, name="license-activate").start()
+
+    def _on_license_deactivate(self):
+        def worker():
+            ok, msg = self.license.deactivate()
+            self.ui.set_license_result(msg, error=not ok)
+            self.ui.set_license_status(self.license.status())
+        threading.Thread(target=worker, daemon=True, name="license-deactivate").start()
 
     # ─── Micrófono (2.8.0) ───
 
@@ -400,10 +446,10 @@ class Controller:
         elegido (None = cerrar). Corre en el hilo de Tk; es barato."""
         if name is None:
             self.recorder.stop_monitor()
-            return
+            return True
         idx = audio_devices.resolve_device_index(name)
         self.recorder.set_device(idx)
-        self.recorder.start_monitor()
+        return self.recorder.start_monitor()
 
     # ─── Asistente inicial (2.8.0) ───
 
@@ -1067,6 +1113,9 @@ class Controller:
                     self._log("[ctrl] aún cargando modelo, espera unos segundos…")
                     self.beeps.error()
                     return
+                if not self.license.allows_dictation():
+                    self._license_blocked_feedback()
+                    return
                 self._recording_source = "hotkey"
                 # Guarda estado de CapsLock si aplica.
                 if self._is_capslock_hotkey():
@@ -1092,6 +1141,9 @@ class Controller:
                 if not self._model_ready.is_set():
                     self._log("[ctrl] aún cargando modelo…")
                     self.beeps.error()
+                    return
+                if not self.license.allows_dictation():
+                    self._license_blocked_feedback()
                     return
                 self._recording_source = "button"
                 start = True
@@ -1381,8 +1433,27 @@ class Controller:
                 self._real_shutdown()
 
 
+def _cli_deactivate_license() -> int:
+    """`Wisip.exe --deactivate-license`: libera la licencia de este equipo sin
+    abrir la UI. Lo invoca el desinstalador para que la clave se pueda usar en
+    otro PC. Devuelve 0 si quedó libre (o no había licencia)."""
+    from app.settings import Settings
+    lines = []
+    lm = LicenseManager(Settings(on_log=lines.append), on_log=lines.append)
+    if not str(lm.settings.get("license_key") or "").strip():
+        return 0
+    ok, msg = lm.deactivate()
+    try:
+        error_log.log_error(f"desactivación de licencia al desinstalar: {msg}")
+    except Exception:
+        pass
+    return 0 if ok else 1
+
+
 def main():
     error_log.install_crash_handlers()
+    if "--deactivate-license" in sys.argv:
+        sys.exit(_cli_deactivate_license())
     try:
         Controller().run()
     except KeyboardInterrupt:

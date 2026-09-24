@@ -36,3 +36,5 @@ jobs:
         run: python scripts/check_setup_assets.py
       - name: Microphone enumeration and onboarding defaults
         run: python scripts/check_audio_devices.py
+      - name: Licensing (mock Lemon Squeezy server)
+        run: python scripts/check_license.py

@@ -86,8 +86,8 @@ python main.py
 
 The first run downloads the Whisper model to `~/.cache/huggingface/hub`
 (`small` ≈ 480 MB on CPU; `large-v3-turbo` ≈ 1.6 GB is selected automatically
-when a working GPU is found). Default hotkey is <kbd>|</kbd> (the key left of
-<kbd>1</kbd> on ES-LA keyboards); change it from the app.
+when a working GPU is found). Default hotkey is <kbd>Ctrl</kbd> + <kbd>Win</kbd> + <kbd>Space</kbd>
+(hold to talk); change it from the app.
 
 > If you double-click `main.py`, Wisip re-launches itself with the venv's
 > interpreter so the CUDA libraries are found. Set `WISIP_NO_VENV_REEXEC=1` to
@@ -131,6 +131,7 @@ validators run without loading a model:
 | `scripts/check_vocab.py` | token meter, personal CRUD, suggestion mining |
 | `scripts/check_setup_assets.py` | first-run downloads: range-based wheel extraction, checksums, cancel, fallback (local HTTP server) |
 | `scripts/check_audio_devices.py` | microphone enumeration (WASAPI dedupe, name-based resolution) and onboarding defaults |
+| `scripts/check_license.py` | trial, activation, revalidation, offline grace and deactivation against a mock Lemon Squeezy server |
 
 ## Architecture
 
@@ -147,6 +148,7 @@ app/setup_assets.py     first-run downloads: NVIDIA pack (range reads of PyPI wh
 app/setup_window.py     progress window (model / GPU pack) with cancel
 app/onboarding.py       first-run wizard: privacy, microphone (live level), hotkey, language, GPU
 app/audio_devices.py    microphone enumeration (WASAPI, deduplicated) and name-based resolution
+app/license.py          30-day trial + lifetime key per machine (Lemon Squeezy License API)
 app/ui.py, themes.py    CustomTkinter window, palettes, Vocabulary tab
 app/floating_bar.py     always-on-top status pill with live mic bars
 app/hotkeys.py, typer.py, tray.py, autostart.py, single_instance.py, error_log.py
@@ -167,6 +169,14 @@ Everything user-specific lives in `%APPDATA%\local-voice-typer\`
 Measured evaluation set, engine abstraction (Parakeet via ONNX / whisper.cpp
 Vulkan for AMD and Intel), an opt-in local-LLM cleanup pass, per-dictation
 language switch and an English UI. Details in [docs/ROADMAP.md](docs/ROADMAP.md).
+
+## Licensing model (the product)
+
+The source is GPL-3.0. The installers are sold as a lifetime license per
+machine: 30-day free trial, then a key from the store activates one PC
+through the Lemon Squeezy License API. Deactivate from the Licencia tab, or
+just uninstall, to move the key to another computer. Revalidation happens
+every 30 days and tolerates 90 days offline. No account, no telemetry.
 
 ## License
 

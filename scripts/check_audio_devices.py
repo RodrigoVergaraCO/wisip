@@ -72,8 +72,10 @@ def main():
         check("índice WASAPI del Kraken", lst[0]["index"] == 7)
 
         print("\n── Resolución por nombre ──")
-        check("nombre exacto → índice WASAPI", ad.resolve_device_index("Micrófono (Razer Kraken V3 X)") == 7)
-        check("nombre truncado de MME → WASAPI por prefijo", ad.resolve_device_index("CABLE Output (VB-Audio Virtual ") == 6)
+        check("nombre exacto → índice MME (abre a 16 kHz)", ad.resolve_device_index("Micrófono (Razer Kraken V3 X)") == 1)
+        check("nombre completo WASAPI → MME truncado por prefijo", ad.resolve_device_index("CABLE Output (VB-Audio Virtual Cable)") == 2)
+        check("solo en WASAPI → índice WASAPI", ad.resolve_device_index("Webcam C920") == 8)
+        check("extra_settings sin dispositivo → None", ad.stream_extra_settings(None) is None)
         check("vacío → predeterminado (None)", ad.resolve_device_index("") is None)
         check("etiqueta 'Predeterminado' → None", ad.resolve_device_index(ad.DEFAULT_LABEL) is None)
         check("desconectado → None", ad.resolve_device_index("Blue Yeti") is None)

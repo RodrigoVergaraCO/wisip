@@ -51,6 +51,16 @@ DEFAULTS = {
     "first_run_done": False,
     # Micrófono elegido, por NOMBRE (vacío = predeterminado del sistema).
     "input_device_name": "",
+    # Licencias (2.9.0). Ver app/license.py.
+    "trial_started": "",
+    "license_key": "",
+    "license_instance_id": "",
+    "license_status": "",
+    "license_activated_at": "",
+    "license_last_validated": "",
+    "license_email": "",
+    "license_product": "",
+    "license_message": "",
     "batched": config.DEFAULT_BATCHED,
     "batch_size": config.DEFAULT_BATCH_SIZE,
     # Transcripción incremental (solo diseño; desactivada)

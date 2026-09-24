@@ -27,6 +27,26 @@ except Exception:  # pragma: no cover
 
 _LEVEL_MS = 50
 
+_KEY_NAMES = {"windows": "Win", "space": "Espacio", "ctrl": "Ctrl", "alt": "Alt",
+              "shift": "Shift", "enter": "Enter", "esc": "Esc", "caps lock": "Bloq Mayús",
+              "scroll lock": "Bloq Despl", "right ctrl": "Ctrl der.", "right alt": "Alt der.",
+              "right shift": "Shift der."}
+
+
+def pretty_hotkey(label: str) -> str:
+    """'ctrl+windows+space' → 'Ctrl + Win + Espacio'; '|' → '|'; 'f8' → 'F8'."""
+    parts = [p.strip() for p in (label or "").split("+") if p.strip()]
+    out = []
+    for p in parts:
+        low = p.lower()
+        if low in _KEY_NAMES:
+            out.append(_KEY_NAMES[low])
+        elif len(low) <= 3:
+            out.append(p.upper())
+        else:
+            out.append(p.capitalize())
+    return " + ".join(out) if out else (label or "").upper()
+
 
 class OnboardingWizard:
     def __init__(
@@ -171,14 +191,17 @@ class OnboardingWizard:
     # ── páginas ─────────────────────────────────────────────────────────
     def _page_welcome(self, f):
         self._title(f, "Bienvenido a Wisip")
-        self._text(f, "Mantén una tecla, habla, suéltala: el texto aparece en la app que "
-                      "tengas abierta. Todo el reconocimiento de voz ocurre en este equipo. "
-                      "Tu voz y tus textos no salen de tu PC.")
+        self._text(f, "Así funciona:\n"
+                      "  1.  Pon el cursor donde quieras escribir (chat, correo, editor…).\n"
+                      "  2.  Mantén la tecla de dictado y habla con normalidad.\n"
+                      "  3.  Suéltala: el texto aparece escrito ahí mismo.")
+        self._text(f, "Todo el reconocimiento de voz ocurre en este equipo. Tu voz y tus "
+                      "textos no salen de tu PC.", muted=True, size=11)
         self._text(f, "Privacidad", size=13)
-        self._check(f, "Guardar un registro local de mis dictados (solo en este equipo) para "
-                       "que Wisip aprenda mi vocabulario", self.var_log)
-        self._text(f, "Se guarda en tu carpeta de usuario y puedes apagarlo cuando quieras "
-                      "desde la pestaña Transcribe. Sin él, Wisip funciona igual.", muted=True, size=11)
+        self._check(f, "Guardar un registro local de mis dictados", self.var_log)
+        self._text(f, "Sirve para que Wisip aprenda tu vocabulario (nombres, marcas, términos). "
+                      "Se guarda solo en tu carpeta de usuario y puedes apagarlo cuando quieras. "
+                      "Sin él, Wisip funciona igual.", muted=True, size=11)
 
     def _page_mic(self, f):
         self._title(f, "Tu micrófono")
@@ -225,8 +248,9 @@ class OnboardingWizard:
         self.rebind_status = ctk.CTkLabel(row, text="", font=ctk.CTkFont(size=11),
                                           text_color=pal["TEXT_MUTED"], anchor="w")
         self.rebind_status.pack(side="left", padx=12)
-        self._text(f, "Consejo: una tecla que no uses al escribir (F8, Bloq Despl, la tecla "
-                      "junto al 1) evita pulsaciones accidentales.", muted=True, size=11)
+        self._text(f, "Ctrl + Win + Espacio es el atajo por defecto (el mismo que usa Wispr "
+                      "Flow). Puedes elegir cualquier tecla o combinación; una que no uses al "
+                      "escribir evita pulsaciones accidentales.", muted=True, size=11)
 
     def _page_language(self, f):
         self._title(f, "Idioma")
@@ -272,6 +296,8 @@ class OnboardingWizard:
         self._text(f, f"Al pulsar Empezar, Wisip descargará el modelo de voz ({model}, {size_txt}) "
                       "una sola vez y quedará listo. Luego prueba: mantén la tecla, di una "
                       "frase y suéltala.", muted=True, size=11)
+        self._text(f, "Todo esto se puede cambiar cuando quieras desde la ventana de Wisip "
+                      "(pestaña Transcribe) o el icono de la bandeja.", muted=True, size=11)
 
     # ── navegación ──────────────────────────────────────────────────────
     def _show_page(self, i: int):
@@ -315,9 +341,18 @@ class OnboardingWizard:
 
     def _device_changed(self, label):
         name = "" if label == audio_devices.DEFAULT_LABEL else label
-        self._safe(lambda: self.on_device_preview(name))
+        opened = {"v": True}
+
+        def _preview():
+            r = self.on_device_preview(name)
+            opened["v"] = (r is None) or bool(r)
+        self._safe(_preview)
         try:
-            self.level_hint.configure(text="Escuchando…", text_color=self.pal["TEXT_MUTED"])
+            if opened["v"]:
+                self.level_hint.configure(text="Escuchando…", text_color=self.pal["TEXT_MUTED"])
+            else:
+                self.level_hint.configure(text="No se pudo abrir este micrófono. Prueba otro.",
+                                          text_color=self.pal["ERROR"])
         except Exception:
             pass
 
@@ -343,7 +378,7 @@ class OnboardingWizard:
             pass
 
     def _pretty_hotkey(self) -> str:
-        return (self.hotkey_label or "").upper().replace("+", " + ")
+        return pretty_hotkey(self.hotkey_label)
 
     def _back(self):
         self._show_page(self._page - 1)
