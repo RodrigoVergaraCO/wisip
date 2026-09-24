@@ -75,7 +75,7 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 [UninstallRun]
 ; Libera la licencia de este equipo antes de borrar los archivos, para que la
 ; clave se pueda activar en otro PC ("transferible al desinstalar").
-Filename: "{app}\{#MyAppExeName}"; Parameters: "--deactivate-license"; Flags: runhidden waituntilterminated runasoriginaluser; RunOnceId: "WisipDeactivateLicense"
+Filename: "{app}\{#MyAppExeName}"; Parameters: "--deactivate-license"; Flags: runhidden waituntilterminated; RunOnceId: "WisipDeactivateLicense"
 
 [Run]
 ; Wisip ya NO se compila con --uac-admin: corre en modo usuario.
