@@ -281,7 +281,16 @@ class Transcriber:
             # permite saber si la frase quedó abierta al evaluar el siguiente
             # segmento corto (guarda 4, umbral de continuación).
             "last_kept_text": "",
+            # Idioma detectado por ventana (para "dictar y traducir").
+            "idiomas": {},
         }
+
+    def dictation_language(self) -> str | None:
+        """Idioma mayoritario detectado en el dictado actual (p.ej. 'es')."""
+        langs = (self._dict_stats or {}).get("idiomas") or {}
+        if not langs:
+            return None
+        return max(langs.items(), key=lambda kv: kv[1])[0]
 
     def begin_dictation(self):
         """Resetea las stats acumuladas. Llamar al INICIO de cada grabación
@@ -655,6 +664,11 @@ class Transcriber:
             f"solicitado={requested} duracion={dur:.2f}s segs={seg_count} "
             f"vacios={empty_count} descartados={dropped_count}"
         )
+        try:
+            langs = stats.setdefault("idiomas", {})
+            langs[info.language] = langs.get(info.language, 0) + 1
+        except Exception:
+            pass
         self.on_log(
             f"[whisper] transcrito en {elapsed:.2f}s (RT ratio={rt_ratio:.2f}x)"
         )

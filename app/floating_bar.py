@@ -150,6 +150,14 @@ class FloatingBar:
             )
             self._bar_ids.append(rid)
 
+        # Etiqueta de modo (p.ej. "EN" cuando se dicta y traduce), en el sitio
+        # del punto de estado. Oculta por defecto.
+        self.tag_id = c.create_text(
+            DOT_X, cy, text="", fill=DOT_REC, font=("Segoe UI", 7, "bold"),
+        )
+        c.itemconfigure(self.tag_id, state="hidden")
+        self._mode_tag = None
+
         # Texto centrado ("✓" / mensaje de error). Oculto por defecto.
         self.text_id = c.create_text(
             BAR_W // 2, cy, text="",
@@ -239,9 +247,25 @@ class FloatingBar:
         self.hotkey_label = (label or "").upper()
 
     # ---------- implementaciones reales (en hilo Tk) ----------
+    def set_mode_tag(self, text):
+        """Texto corto (≤3 letras) que sustituye al punto rojo mientras se
+        graba, p.ej. "EN" en modo dictar y traducir. None = punto normal."""
+        self._mode_tag = (text or "")[:3] or None
+
+    def _apply_mode_tag(self, recording: bool):
+        try:
+            if recording and self._mode_tag:
+                self.canvas.itemconfigure(self.dot_id, state="hidden")
+                self.canvas.itemconfigure(self.tag_id, state="normal", text=self._mode_tag)
+            else:
+                self.canvas.itemconfigure(self.tag_id, state="hidden")
+        except Exception:
+            pass
+
     def _do_show_recording(self):
         self._show()
         self._set_dot(DOT_REC)
+        self._apply_mode_tag(True)
         self._set_text(None)
         self._levels = [0.0] * WAVE_N
         self._set_bars_visible(True, WAVE_ACTIVE)
@@ -249,6 +273,7 @@ class FloatingBar:
 
     def _do_show_transcribing(self):
         self._show()
+        self._apply_mode_tag(False)
         self._set_dot(DOT_BUSY)
         self._set_text(None)
         self._set_bars_visible(True, WAVE_IDLE)

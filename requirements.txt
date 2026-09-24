@@ -10,6 +10,8 @@ pillow>=10.0.0
 # Pestaña Vocabulario: frecuencias de corpus ES/EN para detectar palabras
 # inventadas por Whisper al minar sugerencias del registro de dictados.
 wordfreq>=3.0.0
+# Traducción local ES↔EN (OPUS-MT sobre CTranslate2): tokenizador SentencePiece.
+sentencepiece>=0.2.0
 
 # ─── Aceleración por GPU (OPCIONAL, solo NVIDIA) ───────────────────────────
 # Wisip funciona 100% en CPU sin esto. Para usar GPU (perfil "Rápido seguro" o

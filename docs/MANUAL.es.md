@@ -59,6 +59,24 @@ python main.py
 5. Presiona **`Ctrl + Win + Espacio`** otra vez → *Transcribiendo… → Pegando… → Inactivo*. Suena otro beep.
 6. El texto aparece dentro del input.
 
+## Dictar y traducir
+
+Además de la tecla de dictar hay un segundo atajo, **`Ctrl + Win + Shift + Espacio`**
+(se cambia en Inicio → "Cambiar atajo"). Funciona igual: mantén, habla, suelta.
+La diferencia es que el texto se pega **traducido** al idioma que elijas en
+Inicio → "Traducir a" (Inglés o Español):
+
+- Hablas en español con destino Inglés → se pega en inglés.
+- Hablas en inglés con destino Español → se pega en español.
+- Hablas en el idioma destino → se pega tal cual, sin tocar.
+
+La primera vez que uses un sentido, Wisip descarga el paquete de traducción
+(~80 MB, `%LOCALAPPDATA%\Wisip\models\opus-mt-es-en` o `opus-mt-en-es`) desde
+`RodrigoVergaraCO/wisip-models`. Después funciona sin internet, en CPU, en unas
+décimas de segundo por párrafo. Modelos: OPUS-MT de Helsinki-NLP (CC-BY-4.0)
+convertidos a CTranslate2 int8. Mientras traduces, la barra flotante muestra
+"EN" o "ES" en vez del punto de grabación.
+
 ## Tray (bandeja de Windows)
 
 - Hacer clic en la X de la ventana **oculta** la app a la bandeja, no la cierra. El hotkey global sigue funcionando.

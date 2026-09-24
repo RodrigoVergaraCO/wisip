@@ -68,13 +68,14 @@ from app.beeps import Beeps
 from app.dictation_log import DictationLog
 from app.floating_bar import FloatingBar
 from app.history import History
-from app.hotkeys import HotkeyManager
+from app.hotkeys import MultiHotkeyManager
 from app.incremental import IncrementalSession
 from app.postprocessor import normalize_emails_urls_symbols
 from app.replacements import Replacements
 from app.settings import Settings
 from app.single_instance import enforce_single_instance
 from app.transcriber import Transcriber, cuda_available
+from app import translator as mt
 from app.tray import TrayIcon
 from app.typer import clean_text, copy_only, paste_text
 from app.ui import AppUI
@@ -134,6 +135,8 @@ class Controller:
             on_input_device_change=self._on_input_device_change,
             on_license_activate=self._on_license_activate,
             on_license_deactivate=self._on_license_deactivate,
+            on_translate_target_change=self._on_translate_target_change,
+            translate_hotkey_label=self.settings.get("hotkey_translate"),
             on_update_install=self._on_update_install_clicked,
             on_check_updates=self._on_check_updates_clicked,
             on_auto_update_toggle=self._on_auto_update_toggle,
@@ -163,13 +166,17 @@ class Controller:
         self._onboarding_done = threading.Event()
         self._gpu_pack_preapproved = False
         self.transcriber = Transcriber(on_log=self._log)
-        self.hotkeys = HotkeyManager(
+        self.hotkeys = MultiHotkeyManager(
             on_press=self._hotkey_press,
             on_release=self._hotkey_release,
             on_log=self._log,
-            hotkey=self.settings.get("hotkey"),
+            hotkeys={"dictate": self.settings.get("hotkey"),
+                     "translate": self.settings.get("hotkey_translate")},
             is_enabled=lambda: bool(self.settings.get("hotkey_enabled")),
         )
+        self.translator = mt.Translator(on_log=self._log)
+        self._recording_mode = "dictate"      # "dictate" | "translate"
+        self._rebind_target = "dictate"
         self.floating_bar = FloatingBar(
             parent_root=self.ui.root,
             hotkey_label=self.settings.get("hotkey"),
@@ -922,10 +929,11 @@ class Controller:
         )
 
     # ---------------- rebind del hotkey ----------------
-    def _on_hotkey_rebind_request(self):
+    def _on_hotkey_rebind_request(self, target: str = "dictate"):
         if self._rebinding:
             return
         self._rebinding = True
+        self._rebind_target = "translate" if target == "translate" else "dictate"
         threading.Thread(target=self._do_rebind, daemon=True).start()
 
     def _do_rebind(self):
@@ -961,15 +969,19 @@ class Controller:
                     wiz.set_hotkey(None)
                 return
 
-            self.settings.set("hotkey", new_hk)
+            key_setting = "hotkey_translate" if self._rebind_target == "translate" else "hotkey"
+            self.settings.set(key_setting, new_hk)
             try:
-                self.hotkeys.rebind(new_hk)
+                self.hotkeys.rebind(self._rebind_target, new_hk)
             except Exception as e:
                 self._log(f"[hotkey] error registrando '{new_hk}': {e}. "
                           f"Edita 'hotkey' en app_settings.json y reinicia.")
                 return
 
-            self.ui.update_hotkey_label(new_hk)
+            if self._rebind_target == "translate":
+                self.ui.update_translate_hotkey_label(new_hk)
+            else:
+                self.ui.update_hotkey_label(new_hk)
             try:
                 self.floating_bar.set_hotkey_label(new_hk)
             except Exception:
@@ -1218,10 +1230,11 @@ class Controller:
             self._capslock_was_on = None
 
     # ---------------- hotkey: push-to-talk ----------------
-    def _hotkey_press(self):
+    def _hotkey_press(self, which: str = "dictate"):
         # Si el atajo está desactivado, no hacemos nada (la tecla funciona normal).
         if not bool(self.settings.get("hotkey_enabled")):
             return
+        self._recording_mode = "translate" if which == "translate" else "dictate"
         # Marca "press en curso" para que on_release espere.
         self._press_done.clear()
         try:
@@ -1243,7 +1256,7 @@ class Controller:
         finally:
             self._press_done.set()
 
-    def _hotkey_release(self):
+    def _hotkey_release(self, which: str = "dictate"):
         if not bool(self.settings.get("hotkey_enabled")):
             return
         # Espera a que termine on_press para evitar race en taps rápidos.
@@ -1329,6 +1342,11 @@ class Controller:
                 if self._inc_session is not None:
                     sink = self._inc_session.feed
             self.recorder.start(chunk_sink=sink)
+            if self._recording_mode == "translate":
+                tgt = str(self.settings.get("translate_target") or "en").upper()
+                self.floating_bar.set_mode_tag(tgt)
+            else:
+                self.floating_bar.set_mode_tag(None)
             self._set_state("recording")
             self.ui.set_button_text("Detener y transcribir")
             self.beeps.start()
@@ -1338,6 +1356,50 @@ class Controller:
             self._set_state("error")
             self.ui.set_button_text("Iniciar grabación")
             self.beeps.error()
+
+    # ─── Dictar y traducir (2.12.0) ───
+
+    def _on_translate_target_change(self, code: str):
+        if code in config.TRANSLATE_TARGET_LABELS:
+            self.settings.set("translate_target", code)
+
+    def _translate_final(self, text: str) -> str:
+        """Traduce el texto final del dictado al idioma destino. Nunca lanza:
+        si algo falla, devuelve el texto tal cual y avisa."""
+        tgt = str(self.settings.get("translate_target") or "en")
+        src = self.transcriber.dictation_language() or str(self.settings.get("language") or "es")
+        if src not in mt.SUPPORTED:
+            src = "es" if tgt == "en" else "en"
+        if src == tgt:
+            self._log(f"[traductor] el dictado ya está en {tgt}: sin traducir")
+            return text
+        pair = mt.pair_for(src, tgt)
+        try:
+            if not mt.pack_installed(pair):
+                self._set_state("processing")
+                win = self._new_setup_window()
+                try:
+                    win.show(f"Descargando el traductor {src.upper()} → {tgt.upper()}",
+                             f"Una sola vez (~{config.MT_PACK_DOWNLOAD_MB} MB). Luego funciona sin internet.",
+                             cancellable=True)
+                    mt.ensure_pack(pair, progress=win.set_progress, cancel=win.cancel_event, on_log=self._log)
+                finally:
+                    win.close()
+            self._set_state("processing")
+            t0 = time.perf_counter()
+            out = self.translator.translate(text, src, tgt)
+            self._log(f"[traductor] {src}→{tgt} en {time.perf_counter() - t0:.2f}s: {out!r}")
+            return out
+        except setup_assets.DownloadCancelled:
+            self._log("[traductor] descarga cancelada; pego el texto sin traducir")
+        except Exception as e:
+            self._log(f"[traductor] error ({type(e).__name__}): {e}; pego el texto sin traducir")
+            error_log.log_error("traducción", e)
+            try:
+                self.floating_bar.show_error_and_hide("Traducción falló", delay_ms=2200)
+            except Exception:
+                pass
+        return text
 
     def _watch_mic_silence(self):
         """Mientras se graba: si tras 3 s el micro sigue en ceros digitales
@@ -1486,6 +1548,10 @@ class Controller:
                 self._log(f"[normalizer] error (texto sin cambios): {e}")
 
             self._log_benchmark(audio_duration, t_rep, pp, trans_s_override=inc_total_s)
+
+            if self._recording_mode == "translate":
+                text = self._translate_final(text)
+            self._recording_mode = "dictate"
 
             self.ui.set_transcription(text)
             self._log(f"[whisper] texto: {text!r}")

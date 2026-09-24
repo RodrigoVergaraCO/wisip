@@ -51,6 +51,9 @@ DEFAULTS = {
     "first_run_done": False,
     # Micrófono elegido, por NOMBRE (vacío = predeterminado del sistema).
     "input_device_name": "",
+    # Dictar y traducir (2.12.0). Ver app/translator.py.
+    "hotkey_translate": config.DEFAULT_HOTKEY_TRANSLATE,
+    "translate_target": "en",
     # Auto-actualización (2.11.0). Ver app/updater.py.
     "auto_update_check": True,      # consultar GitHub Releases (cada 6 h)
     "auto_update_install": True,    # descargar e instalar solo cuando la app esté en reposo

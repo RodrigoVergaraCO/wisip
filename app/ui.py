@@ -105,6 +105,9 @@ class AppUI:
         on_license_activate=None,
         on_license_deactivate=None,
         buy_url: str = "",
+        # Dictar y traducir (2.12.0). Opcionales.
+        on_translate_target_change=None,
+        translate_hotkey_label: str = "",
         # Auto-actualización (2.11.0). Opcionales.
         on_update_install=None,
         on_check_updates=None,
@@ -143,6 +146,8 @@ class AppUI:
         self.on_license_deactivate = on_license_deactivate
         self._buy_url = buy_url or config.BUY_URL
         self._last_license: dict | None = None
+        self.on_translate_target_change = on_translate_target_change
+        self._translate_hotkey_label = translate_hotkey_label or config.DEFAULT_HOTKEY_TRANSLATE
         self.on_update_install = on_update_install
         self.on_check_updates = on_check_updates
         self.on_auto_update_toggle = on_auto_update_toggle
@@ -561,6 +566,53 @@ class AppUI:
         )
         self.rebind_btn.pack(side="right", padx=(8, 0))
 
+        # Dictar y traducir: segundo atajo + idioma destino.
+        tcard = ctk.CTkFrame(
+            scroll, fg_color=BG_SURFACE,
+            border_color=BORDER, border_width=1, corner_radius=6,
+        )
+        tcard.pack(fill="x", padx=4, pady=(0, 12))
+        tinner = ctk.CTkFrame(tcard, fg_color="transparent")
+        tinner.pack(fill="x", padx=14, pady=10)
+        tleft = ctk.CTkFrame(tinner, fg_color="transparent")
+        tleft.pack(side="left", fill="x", expand=True)
+        trow = ctk.CTkFrame(tleft, fg_color="transparent")
+        trow.pack(anchor="w")
+        ctk.CTkLabel(
+            trow, text="Mantén", font=self._fnt(13, bold=True), text_color=TEXT, anchor="w",
+        ).pack(side="left")
+        self.translate_key_label = ctk.CTkLabel(
+            trow, text=pretty_hotkey(self._translate_hotkey_label),
+            font=self._fnt_mono(12), text_color=PRIMARY, fg_color=ACCENT_CONTAINER,
+            corner_radius=6, padx=8, pady=1,
+        )
+        self.translate_key_label.pack(side="left", padx=8)
+        ctk.CTkLabel(
+            trow, text="para dictar y traducir a", font=self._fnt(13, bold=True), text_color=TEXT, anchor="w",
+        ).pack(side="left")
+        tgt_code = str(self._initial.get("translate_target") or "en")
+        self.translate_target_menu = ctk.CTkOptionMenu(
+            trow, values=list(config.TRANSLATE_TARGET_LABELS.values()), width=110, height=26,
+            command=self._translate_target_changed,
+            fg_color=BG_INPUT, button_color=BG_SURFACE_HIGH, button_hover_color=BG_SURFACE_HIGHEST,
+            text_color=TEXT, dropdown_fg_color=BG_SURFACE_HIGH, dropdown_hover_color=ACCENT_CONTAINER,
+            dropdown_text_color=TEXT, corner_radius=4, font=self._fnt(12),
+        )
+        self.translate_target_menu.set(config.TRANSLATE_TARGET_LABELS.get(tgt_code, "Inglés"))
+        self.translate_target_menu.pack(side="left", padx=8)
+        ctk.CTkLabel(
+            tleft,
+            text="Hablas en un idioma y el texto sale en el otro (español ↔ inglés), sin internet. "
+                 "El primer uso descarga el traductor (~80 MB).",
+            font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left", wraplength=560,
+        ).pack(anchor="w")
+        self.translate_rebind_btn = ctk.CTkButton(
+            tinner, text="👆", command=lambda: self._on_rebind_clicked("translate"),
+            fg_color="transparent", hover_color=BG_SURFACE_HIGH, text_color=PRIMARY,
+            font=self._fnt(20), width=44, height=44, corner_radius=22,
+        )
+        self.translate_rebind_btn.pack(side="right", padx=(8, 0))
+
         # Cómo funciona (3 pasos; para quien abre la app por primera vez).
         how = ctk.CTkFrame(
             scroll, fg_color=BG_SURFACE_LOW,
@@ -575,7 +627,8 @@ class AppUI:
             how,
             text=("1. Pon el cursor donde quieras escribir (chat, correo, editor).\n"
                   "2. Mantén la tecla de dictado y habla con normalidad.\n"
-                  "3. Suéltala: el texto se escribe ahí mismo. Todo ocurre en tu PC, sin internet."),
+                  "3. Suéltala: el texto se escribe ahí mismo. Todo ocurre en tu PC, sin internet.\n"
+                  "4. Con la segunda tecla, lo que dictes sale traducido al otro idioma."),
             font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left",
         ).pack(anchor="w", padx=12, pady=(0, 8))
 
@@ -1512,7 +1565,33 @@ class AppUI:
     def _start_minimized_changed(self):
         self.on_start_minimized_toggle(bool(self.start_minimized_var.get()))
 
-    def _on_rebind_clicked(self):
+    def _translate_target_changed(self, label):
+        code = config.TRANSLATE_LABEL_TO_CODE.get(label, "en")
+        self._initial["translate_target"] = code
+        if self.on_translate_target_change:
+            self.on_translate_target_change(code)
+
+    def update_translate_hotkey_label(self, label: str):
+        self._translate_hotkey_label = label or self._translate_hotkey_label
+        def _do():
+            try:
+                self.translate_key_label.configure(text=pretty_hotkey(self._translate_hotkey_label))
+            except Exception:
+                pass
+        try:
+            self.root.after(0, _do)
+        except Exception:
+            _do()
+
+    def _on_rebind_clicked(self, target: str = "dictate"):
+        self._rebind_target = target
+        if self.on_hotkey_rebind_request:
+            try:
+                self.on_hotkey_rebind_request(target)
+            except TypeError:
+                self.on_hotkey_rebind_request()
+
+    def _on_rebind_clicked_legacy(self):
         self.on_hotkey_rebind_request()
 
     # ---- cambio de tema (en vivo) ----
@@ -1633,6 +1712,8 @@ class AppUI:
             mic = self.mic_menu.get().replace("  (no conectado)", "")
             ini["input_device_name"] = "" if mic == audio_devices.DEFAULT_LABEL else mic
             ini["auto_update_install"] = bool(self.auto_update_var.get())
+            ini["translate_target"] = config.TRANSLATE_LABEL_TO_CODE.get(
+                self.translate_target_menu.get(), "en")
         except Exception:
             pass
 

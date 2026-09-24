@@ -250,7 +250,9 @@ class OnboardingWizard:
         self.rebind_status.pack(side="left", padx=12)
         self._text(f, "Ctrl + Win + Espacio es el atajo por defecto (el mismo que usa Wispr "
                       "Flow). Puedes elegir cualquier tecla o combinación; una que no uses al "
-                      "escribir evita pulsaciones accidentales.", muted=True, size=11)
+                      "escribir evita pulsaciones accidentales. Añadiendo Shift (Ctrl + Win + "
+                      "Shift + Espacio) lo que dictes sale traducido al otro idioma.",
+                   muted=True, size=11)
 
     def _page_language(self, f):
         self._title(f, "Idioma")

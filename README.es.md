@@ -59,6 +59,15 @@ medio segundo. Sin GPU cae a CPU automáticamente.
 - **Asistente de primer arranque.** Consentimiento del registro local,
   selector de micrófono con medidor en vivo, captura de la tecla, idioma y
   modo mixto, oferta de aceleración GPU. Cinco pasos cortos, una sola vez.
+- **Dictar y traducir.** Un segundo atajo (`Ctrl + Win + Shift + Espacio`)
+  transcribe como siempre y pega la traducción: hablas en español y sale en
+  inglés, o al revés. El idioma destino se elige en Inicio; si lo dicho ya
+  está en ese idioma se deja igual. Modelos OPUS-MT (Helsinki-NLP)
+  convertidos a CTranslate2 int8, ~80 MB por sentido, se descargan la primera
+  vez y corren en CPU sin internet.
+- **Auto-actualización.** Consulta las releases de GitHub, descarga el
+  instalador en segundo plano (verificado por SHA256) y lo instala solo
+  cuando llevas un minuto sin dictar. Instalación por usuario, sin UAC.
 - **Detalles de escritorio.** Barra flotante con nivel de micro en vivo, cuatro
   temas oscuros, icono en bandeja, inicio con Windows, instancia única, log de
   errores con diálogos nativos.

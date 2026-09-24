@@ -679,6 +679,21 @@ CHANNELS = 1
 # usa Wispr Flow en Windows (antes "|", que falta en muchos teclados). Las
 # instalaciones existentes conservan su tecla guardada.
 DEFAULT_HOTKEY = "ctrl+windows+space"
+# Segundo atajo (2.12.0): mantener para dictar y TRADUCIR al idioma destino.
+# Contiene al anterior a propósito: el gestor de atajos da prioridad al chord
+# más largo, así que añadir Shift cambia de modo sin conflicto.
+DEFAULT_HOTKEY_TRANSLATE = "ctrl+windows+shift+space"
+TRANSLATE_TARGET_LABELS = {"en": "Inglés", "es": "Español"}
+TRANSLATE_LABEL_TO_CODE = {v: k for k, v in TRANSLATE_TARGET_LABELS.items()}
+# Paquetes de traducción OPUS-MT convertidos a CTranslate2 int8 (release
+# pública del repo wisip-models). sha256 verificado al descargar.
+MT_PACKS = {
+    "es-en": {"url": "https://github.com/RodrigoVergaraCO/wisip-models/releases/download/mt-v1/opus-mt-es-en-ct2-int8.zip",
+              "size": 67782891, "sha256": "400ed26569991d5be899c457ff1ef17a28da8c57c6d7de0fad52b336123de8cb"},
+    "en-es": {"url": "https://github.com/RodrigoVergaraCO/wisip-models/releases/download/mt-v1/opus-mt-en-es-ct2-int8.zip",
+              "size": 68614138, "sha256": "503f876482ae0b5189f53be7b1192178d089749b488d1a652caa3baa4d6b56fb"},
+}
+MT_PACK_DOWNLOAD_MB = 80
 
 # Modos de pegado
 PASTE_MODE_PASTE = "paste"

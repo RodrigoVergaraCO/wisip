@@ -66,6 +66,12 @@ about half a second. Without a GPU it falls back to CPU automatically.
 - **First-run wizard.** Privacy consent for the local log, microphone picker
   with a live level meter, hotkey capture, language and mixed mode, GPU
   acceleration offer. Five short steps, shown once.
+- **Dictate and translate.** A second hotkey (`Ctrl + Win + Shift + Space`)
+  transcribes as usual and pastes the translation instead: speak Spanish, get
+  English, or the other way round. Pick the target language in the Home tab;
+  if what you said is already in that language it is left untouched.
+  OPUS-MT models (Helsinki-NLP) converted to CTranslate2 int8, ~80 MB per
+  direction, downloaded on first use and run on CPU, offline.
 - **Auto-update.** Checks GitHub Releases, downloads the installer in the
   background (SHA256-verified) and installs it silently once you have been
   idle for a minute. Per-user install, so no UAC prompts.
@@ -155,6 +161,7 @@ app/onboarding.py       first-run wizard: privacy, microphone (live level), hotk
 app/audio_devices.py    microphone enumeration (WASAPI, deduplicated) and name-based resolution
 app/license.py          30-day trial + lifetime key per machine (Lemon Squeezy License API)
 app/updater.py          auto-update from GitHub Releases (background download, silent per-user install)
+app/translator.py       local ES<->EN translation (OPUS-MT on CTranslate2 int8, lazy model download)
 tests/shots.py          real product screenshots composed for the store and website (site/media)
 app/ui.py, themes.py    CustomTkinter window, palettes, Vocabulary tab
 app/floating_bar.py     always-on-top status pill with live mic bars

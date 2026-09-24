@@ -29,6 +29,9 @@ DATAS = [
 fw_datas, fw_binaries, fw_hidden = collect_all("faster_whisper")
 ct2_datas, ct2_binaries, ct2_hidden = collect_all("ctranslate2")
 ck_datas = collect_data_files("customtkinter")
+# sentencepiece: tokenizador de los modelos de traducción (app/translator.py
+# lo importa perezosamente, así que PyInstaller no lo ve solo).
+sp_datas, sp_binaries, sp_hidden = collect_all("sentencepiece")
 
 # wordfreq (pestaña Vocabulario: filtra palabras reales al minar sugerencias).
 # Sus datos traen 66 idiomas (~60 MB); solo empacamos español e inglés (~3.4 MB).
@@ -40,8 +43,8 @@ wfq_datas = [
     or Path(src).name.split(".")[0].endswith(("_es", "_en"))
 ]
 
-DATAS += fw_datas + ct2_datas + ck_datas + wfq_datas
-BINARIES = fw_binaries + ct2_binaries + wfq_binaries
+DATAS += fw_datas + ct2_datas + ck_datas + wfq_datas + sp_datas
+BINARIES = fw_binaries + ct2_binaries + wfq_binaries + sp_binaries
 
 # ─── DLLs CUDA (build GPU) ──────────────────────────────────────────────
 # Si el venv tiene los paquetes pip nvidia-* (cublas/cudnn/nvrtc/runtime), se
@@ -73,7 +76,7 @@ else:
 DATAS += NVIDIA_DATAS
 
 HIDDEN = list(set(
-    fw_hidden + ct2_hidden + wfq_hidden + [
+    fw_hidden + ct2_hidden + wfq_hidden + sp_hidden + [
         "keyboard",
         "pystray._win32",
         "PIL._tkinter_finder",

@@ -150,6 +150,106 @@ class HotkeyManager:
         self._hotkey = new_hotkey
         self.start()
 
+
+class MultiHotkeyManager(HotkeyManager):
+    """Varios atajos push-to-talk con nombre (2.12.0): "dictate" y
+    "translate". Si dos chords se cumplen a la vez (Ctrl+Win+Espacio está
+    contenido en Ctrl+Win+Shift+Espacio), gana el MÁS LARGO y solo dispara
+    ese. Los callbacks reciben el nombre del chord.
+    """
+
+    def __init__(self, on_press, on_release, on_log=None, hotkeys: dict | None = None,
+                 is_enabled=None):
+        self._hotkeys: dict = dict(hotkeys or {"dictate": config.DEFAULT_HOTKEY})
+        super().__init__(on_press, on_release, on_log=on_log,
+                         hotkey=self._hotkeys.get("dictate", config.DEFAULT_HOTKEY),
+                         is_enabled=is_enabled)
+        self._keys: dict = {}
+        self._fired = None   # nombre del chord activo, o None
+
+    @property
+    def current(self) -> str:
+        return self._hotkeys.get("dictate", "")
+
+    def current_for(self, name: str) -> str:
+        return self._hotkeys.get(name, "")
+
+    def start(self):
+        if self._registered:
+            return
+        self._keys = {n: _normalize_keys(v) for n, v in self._hotkeys.items() if v and v.strip()}
+        if not self._keys:
+            self.on_log("[hotkey] sin atajos, no registro nada")
+            return
+        try:
+            self._pressed.clear()
+            self._fired = None
+            self._hook_handle = keyboard.hook(self._on_event, suppress=True)
+            self._registered = True
+            self.on_log("[hotkey] registrados (push-to-talk): " + ", ".join(
+                f"{n}={v.upper()}" for n, v in self._hotkeys.items() if v))
+        except Exception as e:
+            self.on_log(f"[hotkey] error registrando atajos: {e}")
+            raise
+
+    def _all_keys(self) -> set:
+        return {k for keys in self._keys.values() for k in keys}
+
+    def _on_event(self, event):
+        try:
+            name = _canonicalize_event_name(event.name or "")
+            if name not in self._all_keys():
+                return True
+            if not self.is_enabled():
+                return True
+            with self._lock:
+                if event.event_type == keyboard.KEY_DOWN:
+                    self._pressed.add(name)
+                    if self._fired is None:
+                        satisfied = [n for n, keys in self._keys.items()
+                                     if all(k in self._pressed for k in keys)]
+                        if satisfied:
+                            chosen = max(satisfied, key=lambda n: len(self._keys[n]))
+                            self._fired = chosen
+                            threading.Thread(target=self._safe_call1, args=(self.on_press, chosen),
+                                             daemon=True).start()
+                    if self._fired is not None and name in self._keys[self._fired]:
+                        return False
+                elif event.event_type == keyboard.KEY_UP:
+                    self._pressed.discard(name)
+                    if self._fired is not None and not all(k in self._pressed for k in self._keys[self._fired]):
+                        done = self._fired
+                        self._fired = None
+                        threading.Thread(target=self._safe_call1, args=(self.on_release, done),
+                                         daemon=True).start()
+            return True
+        except Exception as e:
+            try:
+                self.on_log(f"[hotkey] error en hook: {e}")
+            except Exception:
+                pass
+            return True
+
+    def _safe_call1(self, fn, arg):
+        if fn is None:
+            return
+        try:
+            fn(arg)
+        except Exception as e:
+            self.on_log(f"[hotkey] error en callback: {e}")
+
+    def rebind(self, name: str, new_hotkey: str):
+        if self._hotkeys.get(name) == new_hotkey and self._registered:
+            return
+        self.stop()
+        self._hotkeys[name] = new_hotkey
+        self.start()
+
+    def stop(self):
+        super().stop()
+        with self._lock:
+            self._fired = None
+
     def stop(self):
         if not self._registered:
             return

@@ -3,6 +3,32 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.12.0 — 2026-09-24
+
+- **Dictar y traducir** (`app/translator.py`): un segundo atajo,
+  `Ctrl + Win + Shift + Espacio`, transcribe como siempre y pega el texto ya
+  traducido. Funciona en los dos sentidos: hablas en español y sale en inglés,
+  o hablas en inglés y sale en español; el destino se elige en Inicio
+  ("Traducir a") y si lo dictado ya está en ese idioma se deja tal cual.
+  Modelos OPUS-MT (Helsinki-NLP) convertidos a CTranslate2 int8, ~80 MB por
+  sentido, se descargan la primera vez que se usan y corren en CPU sin
+  internet. La barra flotante muestra "EN"/"ES" mientras traduces.
+- **Atajos múltiples** (`app/hotkeys.MultiHotkeyManager`): gana el chord más
+  largo, así `Ctrl + Win + Shift + Espacio` no dispara también el dictado.
+- **Inicio**: la tecla se muestra como una tecla física con el color de
+  acento del tema; tarjeta de traducción con explicación en la app y botón
+  para cambiar el atajo.
+- **Ajustes** reorganizados por secciones; el tema se elige con fichas de
+  color en vez de un desplegable; el prompt inicial queda dentro de "Ajustes
+  avanzados".
+- **Idioma por defecto según el sistema**: en un Windows en inglés Wisip
+  arranca en inglés (`config.system_language()`).
+- **Barra flotante**: mientras mantienes la tecla y el micrófono no manda
+  audio, la barra avisa "¿Micrófono en silencio?" en ámbar. Arreglado que la
+  barra dejara de aparecer tras cambiar de tema (el rebuild la destruía).
+- Validador nuevo `scripts/check_translator.py` (oraciones, paquetes,
+  atajos múltiples y traducción real si hay modelos).
+
 ## 2.11.2 — 2026-09-24
 
 - Segunda entrega por auto-actualización (prueba real: la 2.11.1 se actualizó sola a la 2.11.2 desde un servidor simulado de releases).
