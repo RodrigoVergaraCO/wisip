@@ -61,7 +61,7 @@ def _decapitalize_first_word(text: str) -> str:
 #      Se descarta la copia del tramo siguiente.
 _LOWER_START_RE = re.compile(r"^[¿¡\"'(\[]*[a-záéíóúñü]")
 _WORD_TOKEN_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9]+")
-_BOUNDARY_MAX_OVERLAP = 3
+_BOUNDARY_MAX_OVERLAP = 4
 # Palabras que sí abren frase corta tras un punto de tramo ("Muchas gracias.",
 # "Listo.", "Ya está."): NO se pegan a la frase anterior.
 _SHORT_TAIL_STARTERS = {
@@ -89,10 +89,12 @@ def _drop_boundary_duplicate(prev: str, part: str) -> str:
     return part
 
 
-def _is_short_tail(part: str) -> bool:
+def _is_short_tail(part: str, prev: str = "") -> bool:
     """Tramo de 1-2 palabras que no abre frase ("Correctly.", "blancas."):
     casi siempre es la cola de la frase anterior tras una pausa."""
     words = _WORD_TOKEN_RE.findall(part)
+    if prev and len(_WORD_TOKEN_RE.findall(prev)) < 5:
+        return False  # tras una frase corta ("Hola."), 1-2 palabras sí abren frase
     if not 1 <= len(words) <= 2:
         return False
     if part.rstrip().endswith(("?", "!")):
@@ -116,7 +118,7 @@ def join_chunks(parts: list) -> str:
             if chunk_dot and _LOWER_START_RE.match(part):
                 # Punto de cierre de tramo + continuación en minúscula: sobra.
                 out[-1] = prev[:-1].rstrip()
-            elif chunk_dot and _is_short_tail(part):
+            elif chunk_dot and _is_short_tail(part, prev):
                 # "transcribed." + "Correctly.": cola corta capitalizada por
                 # Whisper al arrancar el tramo; es continuación.
                 out[-1] = prev[:-1].rstrip()
