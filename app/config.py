@@ -59,7 +59,7 @@ LICENSE_REVALIDATE_DAYS = 30       # cada cuánto se consulta /validate
 LICENSE_OFFLINE_GRACE_DAYS = 90    # sin poder validar más de esto → bloquea
 # Página de compra (ponerla cuando exista la tienda; hasta entonces el botón
 # lleva al repositorio).
-BUY_URL = "https://github.com/RodrigoVergaraCO/wisip#license"
+BUY_URL = "https://wisip.lemonsqueezy.com/checkout/buy/85d1f7bc-3996-4c7e-a3b4-52e7db6fa264"
 
 # Tamaño aproximado de cada modelo (descarga inicial).
 MODEL_DOWNLOAD_MB = {
