@@ -54,9 +54,11 @@ def _set_app_user_model_id():
 _set_app_user_model_id()
 from app import autostart
 from app import error_log
+from app import audio_devices
 from app import setup_assets
 from app import themes
 from app import vocab
+from app.onboarding import OnboardingWizard, default_result as onboarding_defaults
 from app.setup_window import SetupWindow
 from app.audio_recorder import AudioRecorder, is_digital_silence
 from app.beeps import Beeps
@@ -125,6 +127,7 @@ class Controller:
             on_vocab_analyze=self._on_vocab_analyze,
             on_vocab_ignore=self._on_vocab_ignore,
             on_gpu_pack_install=self._on_gpu_pack_install,
+            on_input_device_change=self._on_input_device_change,
             initial_settings=self.settings.all(),
             hotkey_label=self.settings.get("hotkey"),
         )
@@ -145,6 +148,10 @@ class Controller:
 
         # Componentes runtime
         self.recorder = AudioRecorder(on_log=self._log)
+        self._apply_input_device_setting()
+        self._onboarding: OnboardingWizard | None = None
+        self._onboarding_done = threading.Event()
+        self._gpu_pack_preapproved = False
         self.transcriber = Transcriber(on_log=self._log)
         self.hotkeys = HotkeyManager(
             on_press=self._hotkey_press,
@@ -358,6 +365,11 @@ class Controller:
 
     def _preload_default_model(self):
         try:
+            self._maybe_run_onboarding()
+        except Exception as e:
+            self._log(f"[onboarding] falló: {e}")
+            error_log.log_error("asistente inicial", e)
+        try:
             self._first_run_setup()
         except Exception as e:
             self._log(f"[setup] preparación inicial falló: {e}")
@@ -367,6 +379,97 @@ class Controller:
             self.beeps.error()
             return
         self._load_model_now(self.settings.get("model"))
+
+    # ─── Micrófono (2.8.0) ───
+
+    def _apply_input_device_setting(self):
+        name = str(self.settings.get("input_device_name") or "")
+        idx = audio_devices.resolve_device_index(name)
+        self.recorder.set_device(idx)
+        if name and idx is None:
+            self._log(f"[audio] micrófono guardado '{name}' no está conectado: usando el predeterminado")
+        elif name:
+            self._log(f"[audio] micrófono: '{name}' (índice {idx})")
+
+    def _on_input_device_change(self, name: str):
+        self.settings.set("input_device_name", name or "")
+        self._apply_input_device_setting()
+
+    def _on_device_preview(self, name):
+        """Asistente inicial: abre/cierra el monitor de nivel sobre el micro
+        elegido (None = cerrar). Corre en el hilo de Tk; es barato."""
+        if name is None:
+            self.recorder.stop_monitor()
+            return
+        idx = audio_devices.resolve_device_index(name)
+        self.recorder.set_device(idx)
+        self.recorder.start_monitor()
+
+    # ─── Asistente inicial (2.8.0) ───
+
+    def _maybe_run_onboarding(self):
+        """Corre en el hilo de preload. Bloquea hasta que el usuario termina."""
+        if bool(self.settings.get("first_run_done")):
+            return
+        gpu = None
+        try:
+            gpu = self._gpu_pack_needed()
+        except Exception:
+            gpu = None
+        if os.environ.get("WISIP_SETUP_AUTO_YES") == "1":
+            self._log("[onboarding] modo automático (WISIP_SETUP_AUTO_YES): valores por defecto")
+            self._on_onboarding_finished(onboarding_defaults(self.settings.all(), gpu))
+            return
+        try:
+            devices = audio_devices.list_input_devices()
+        except Exception:
+            devices = []
+        pal = themes.get_palette(self.settings.get("ui_theme") or themes.DEFAULT_THEME)
+        self._onboarding_done.clear()
+
+        def _build():
+            try:
+                self._onboarding = OnboardingWizard(
+                    self.ui.root, palette=pal, initial=self.settings.all(),
+                    devices=devices, hotkey_label=self.settings.get("hotkey"),
+                    gpu_info=gpu, get_level=self.recorder.get_level,
+                    on_device_preview=self._on_device_preview,
+                    on_rebind=self._on_hotkey_rebind_request,
+                    on_finish=self._on_onboarding_finished, on_log=self._log,
+                )
+                self._log("[onboarding] asistente inicial abierto")
+            except Exception as e:
+                self._log(f"[onboarding] no se pudo abrir: {e}")
+                error_log.log_error("abrir asistente inicial", e)
+                self._on_onboarding_finished(onboarding_defaults(self.settings.all(), gpu))
+        self.ui.run_on_ui_thread(_build)
+        self._onboarding_done.wait()
+
+    def _on_onboarding_finished(self, res: dict):
+        try:
+            self.settings.set("dictation_log_enabled", bool(res.get("dictation_log_enabled", True)))
+            self.settings.set("input_device_name", str(res.get("input_device_name") or ""))
+            lang = str(res.get("language") or config.LANGUAGE)
+            if lang in config.LANGUAGE_CODES:
+                self.settings.set("language", lang)
+            self.settings.set("mixed_language_mode", bool(res.get("mixed_language_mode", True)))
+            gp = res.get("gpu_pack")
+            if gp is True:
+                self._gpu_pack_preapproved = True
+                self.settings.set("gpu_pack_declined", False)
+            elif gp is False:
+                self.settings.set("gpu_pack_declined", True)
+            self.settings.set("first_run_done", True)
+            self._apply_input_device_setting()
+            self.recorder.stop_monitor()
+            self._log(f"[onboarding] terminado: idioma={lang} mixto={res.get('mixed_language_mode')} "
+                      f"micro='{res.get('input_device_name') or 'predeterminado'}' "
+                      f"registro={res.get('dictation_log_enabled')} gpu={gp}")
+        except Exception as e:
+            self._log(f"[onboarding] error aplicando resultado: {e}")
+        finally:
+            self._onboarding = None
+            self._onboarding_done.set()
 
     # ─── Preparación inicial (2.7.0): paquete NVIDIA + modelo con progreso ───
 
@@ -381,7 +484,8 @@ class Controller:
                   f"{config.CUDA_DLL_DIRS or 'ninguno'} · usable={config.cuda_dlls_present()}")
         win = self._new_setup_window()
         try:
-            self._offer_gpu_pack(win, interactive=not bool(self.settings.get("gpu_pack_declined")))
+            self._offer_gpu_pack(win, interactive=not bool(self.settings.get("gpu_pack_declined")),
+                                 preapproved=self._gpu_pack_preapproved)
             self._autotune_perf_profile()
             self._refresh_gpu_pack_button()
             self._ensure_model_downloaded(win, self.settings.get("model"))
@@ -403,13 +507,17 @@ class Controller:
                 return None
         return gpu
 
-    def _offer_gpu_pack(self, win: SetupWindow, interactive: bool):
+    def _offer_gpu_pack(self, win: SetupWindow, interactive: bool, preapproved: bool = False):
         gpu = self._gpu_pack_needed()
         if not gpu:
             return
         vram = gpu.get("vram_mb") or 0
         vram_txt = f", {vram / 1024:.0f} GB" if vram else ""
         self._log(f"[gpu-pack] GPU NVIDIA detectada ({gpu['name']}{vram_txt}) sin paquete CUDA")
+        if preapproved:
+            self._log("[gpu-pack] aceptado en el asistente inicial")
+            self._download_gpu_pack(win)
+            return
         if not interactive:
             self._log("[gpu-pack] el usuario lo pospuso antes; botón disponible en la pestaña Transcribe")
             return
@@ -683,6 +791,9 @@ class Controller:
                     self.hotkeys.start()
                 except Exception as e:
                     self._log(f"[hotkey] no pude restaurar el hook: {e}")
+                wiz = self._onboarding
+                if wiz is not None:
+                    wiz.set_hotkey(None)
                 return
 
             self.settings.set("hotkey", new_hk)
@@ -698,6 +809,9 @@ class Controller:
                 self.floating_bar.set_hotkey_label(new_hk)
             except Exception:
                 pass
+            wiz = self._onboarding
+            if wiz is not None:
+                wiz.set_hotkey(new_hk)
             self._log(
                 f"[hotkey] nueva tecla activa: {new_hk.upper()} "
                 f"(la tecla queda suprimida del sistema mientras esté pulsada)"

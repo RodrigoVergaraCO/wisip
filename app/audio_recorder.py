@@ -29,7 +29,7 @@ class AudioRecorder:
     """Captura audio del micrófono. Calcula `level` (RMS escalado) en cada
     callback para que la UI flotante muestre la onda en vivo."""
 
-    def __init__(self, on_log=None):
+    def __init__(self, on_log=None, device=None):
         self.on_log = on_log or (lambda msg: None)
         self._frames = []
         self._stream = None
@@ -38,10 +38,68 @@ class AudioRecorder:
         self._current_level = 0.0
         # Consumidor opcional de bloques en vivo (transcripción incremental).
         self._chunk_sink = None
+        # Índice de sounddevice del micrófono (None = predeterminado).
+        self._device = device
+        # Stream de solo-nivel (asistente inicial: "di algo y mira la barra").
+        self._monitor_stream = None
 
     def is_recording(self) -> bool:
         with self._lock:
             return self._recording
+
+    # ── dispositivo ──
+    def get_device(self):
+        return self._device
+
+    def set_device(self, device):
+        """Cambia el micrófono para la PRÓXIMA grabación (None = predeterminado).
+        Si hay un monitor de nivel activo, lo reinicia sobre el nuevo micro."""
+        self._device = device
+        if self._monitor_stream is not None:
+            self.stop_monitor()
+            self.start_monitor()
+
+    # ── monitor de nivel (sin guardar audio) ──
+    def _monitor_callback(self, indata, frames, time_info, status):
+        try:
+            arr = indata.astype(np.float32).flatten()
+            if arr.size:
+                rms = float(np.sqrt(np.mean(arr * arr))) / 32768.0
+                self._current_level = min(1.0, rms * 8.0)
+        except Exception:
+            pass
+
+    def start_monitor(self) -> bool:
+        """Abre el micrófono solo para medir nivel. No interfiere con una
+        grabación real: si hay una en curso, no hace nada."""
+        with self._lock:
+            if self._recording or self._monitor_stream is not None:
+                return self._monitor_stream is not None
+            try:
+                self._monitor_stream = sd.InputStream(
+                    samplerate=config.SAMPLE_RATE, channels=config.CHANNELS,
+                    dtype="int16", device=self._device, callback=self._monitor_callback,
+                )
+                self._monitor_stream.start()
+                self._current_level = 0.0
+                return True
+            except Exception as e:
+                self._monitor_stream = None
+                self._current_level = 0.0
+                self.on_log(f"[audio] monitor de nivel no disponible: {e}")
+                return False
+
+    def stop_monitor(self):
+        with self._lock:
+            st = self._monitor_stream
+            self._monitor_stream = None
+        if st is not None:
+            try:
+                st.stop()
+                st.close()
+            except Exception:
+                pass
+            self._current_level = 0.0
 
     def get_level(self) -> float:
         """Devuelve el nivel actual de audio en [0, 1] para visualizar."""
@@ -70,6 +128,10 @@ class AudioRecorder:
     def start(self, chunk_sink=None):
         """`chunk_sink`: callable opcional que recibe cada bloque int16 en vivo
         (lo usa la transcripción incremental). Corre en el callback de audio."""
+        # Un monitor de nivel abierto sobre el mismo micro compite con la
+        # grabación real: se cierra primero.
+        if self._monitor_stream is not None:
+            self.stop_monitor()
         with self._lock:
             if self._recording:
                 return
@@ -81,6 +143,7 @@ class AudioRecorder:
                     samplerate=config.SAMPLE_RATE,
                     channels=config.CHANNELS,
                     dtype="int16",
+                    device=self._device,
                     callback=self._callback,
                 )
                 self._stream.start()

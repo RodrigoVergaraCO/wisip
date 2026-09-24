@@ -112,7 +112,8 @@ algo entiende que en una frase sobre proxies "prótesis" no encaja.
 
 - ~~Instalador liviano: un solo `.exe` de ~70 MB, paquete NVIDIA y modelo
   descargados desde la app con progreso.~~ **Hecho en 2.7.0 (2026-09-24).**
-- Selector de micrófono en la UI (el mute por hardware sigue pasando).
+- ~~Selector de micrófono en la UI y asistente de primer arranque.~~ **Hecho
+  en 2.8.0 (2026-09-24).**
 - Releases en GitHub con los instaladores CPU y GPU (hoy solo locales).
 - Firma de código (SmartScreen), auto-update, claves de licencia
   (Lemon Squeezy / Gumroad).

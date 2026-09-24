@@ -3,6 +3,22 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.8.0 — 2026-09-24
+
+- **Asistente de primer arranque** (`app/onboarding.py`): bienvenida y
+  consentimiento del registro local de dictados, micrófono con medidor de
+  nivel en vivo, tecla para dictar (con cambio en el sitio), idioma y modo
+  mixto, aceleración NVIDIA (si hay GPU) y resumen. Se muestra una sola vez
+  (`first_run_done`); con la X se aceptan los valores actuales.
+- **Selector de micrófono** (`app/audio_devices.py`): lista WASAPI
+  deduplicada (nombres completos; MME los trunca a 31 caracteres), guardado
+  por nombre (`input_device_name`) y resuelto a índice en cada arranque; si
+  el micro no está conectado se usa el predeterminado con aviso. Dropdown
+  MICRÓFONO en la pestaña Transcribe; el grabador acepta `device` y tiene un
+  monitor de nivel sin grabar para el asistente.
+- Nuevo validador `scripts/check_audio_devices.py` (tabla de dispositivos
+  simulada) y prueba de humo con Tk real `tests/smoke_onboarding.py`.
+
 ## 2.7.0 — 2026-09-24
 
 - **Un solo instalador liviano (~70 MB)** en vez de CPU (66 MB) y GPU (970 MB).

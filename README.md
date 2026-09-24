@@ -62,6 +62,9 @@ about half a second. Without a GPU it falls back to CPU automatically.
   segments with confidence, applied replacements) plus WAV for suspicious
   dictations, with an analyzer script that turns patterns into dictionary
   entries. Can be switched off.
+- **First-run wizard.** Privacy consent for the local log, microphone picker
+  with a live level meter, hotkey capture, language and mixed mode, GPU
+  acceleration offer. Five short steps, shown once.
 - **Desktop polish.** Floating status pill with live mic level, four dark
   themes, tray icon, start with Windows, single instance, error log with
   native crash dialogs.
@@ -127,6 +130,7 @@ validators run without loading a model:
 | `scripts/check_dictation_log.py` | JSONL log, stats, audio retention |
 | `scripts/check_vocab.py` | token meter, personal CRUD, suggestion mining |
 | `scripts/check_setup_assets.py` | first-run downloads: range-based wheel extraction, checksums, cancel, fallback (local HTTP server) |
+| `scripts/check_audio_devices.py` | microphone enumeration (WASAPI dedupe, name-based resolution) and onboarding defaults |
 
 ## Architecture
 
@@ -141,6 +145,8 @@ app/vocab.py            token meter, personal replacements CRUD, log mining (wor
 app/dictation_log.py    monthly JSONL + WAV retention
 app/setup_assets.py     first-run downloads: NVIDIA pack (range reads of PyPI wheels) + model
 app/setup_window.py     progress window (model / GPU pack) with cancel
+app/onboarding.py       first-run wizard: privacy, microphone (live level), hotkey, language, GPU
+app/audio_devices.py    microphone enumeration (WASAPI, deduplicated) and name-based resolution
 app/ui.py, themes.py    CustomTkinter window, palettes, Vocabulary tab
 app/floating_bar.py     always-on-top status pill with live mic bars
 app/hotkeys.py, typer.py, tray.py, autostart.py, single_instance.py, error_log.py

@@ -56,6 +56,9 @@ medio segundo. Sin GPU cae a CPU automáticamente.
   descartes con confianza, reemplazos aplicados) más WAV de los dictados
   sospechosos, con un analizador que convierte patrones en entradas de
   diccionario. Se puede apagar.
+- **Asistente de primer arranque.** Consentimiento del registro local,
+  selector de micrófono con medidor en vivo, captura de la tecla, idioma y
+  modo mixto, oferta de aceleración GPU. Cinco pasos cortos, una sola vez.
 - **Detalles de escritorio.** Barra flotante con nivel de micro en vivo, cuatro
   temas oscuros, icono en bandeja, inicio con Windows, instancia única, log de
   errores con diálogos nativos.
@@ -111,7 +114,7 @@ dictar   →  logs/dictados-YYYY-MM.jsonl (+ WAV si es sospechoso)
 
 Cada guarda del código cita el dictado real que la motivó. Los validadores
 corren sin cargar el modelo: `check_replacements`, `check_normalizer`,
-`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`, `check_setup_assets`.
+`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`, `check_setup_assets`, `check_audio_devices`.
 
 ## Requisitos
 

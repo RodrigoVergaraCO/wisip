@@ -6,6 +6,7 @@ from tkinter import font as tkfont
 
 import customtkinter as ctk
 
+from . import audio_devices
 from . import config
 from . import themes
 
@@ -96,6 +97,8 @@ class AppUI:
         on_vocab_ignore=None,
         # Botón "Descargar aceleración NVIDIA" (2.7.0). Opcional.
         on_gpu_pack_install=None,
+        # Selector de micrófono (2.8.0). Opcional.
+        on_input_device_change=None,
     ):
         self.on_model_change = on_model_change
         self.on_language_change = on_language_change
@@ -125,6 +128,7 @@ class AppUI:
         self.on_vocab_analyze = on_vocab_analyze
         self.on_vocab_ignore = on_vocab_ignore
         self.on_gpu_pack_install = on_gpu_pack_install
+        self.on_input_device_change = on_input_device_change
         self._gpu_pack_btn_text: str | None = None
 
         # Guard para evitar disparar on_model_change cuando lo cambiamos por código.
@@ -606,6 +610,24 @@ class AppUI:
             initial=themes.THEME_LABELS.get(self._theme_key, ""),
             command=self._theme_changed,
             attr_name="theme_menu",
+        )
+
+        # Micrófono (por nombre; vacío = predeterminado del sistema).
+        try:
+            mic_names = [d["name"] for d in audio_devices.list_input_devices()]
+        except Exception:
+            mic_names = []
+        mic_values = [audio_devices.DEFAULT_LABEL] + mic_names
+        mic_initial = audio_devices.device_label(self._initial.get("input_device_name", ""))
+        if mic_initial not in mic_values:
+            mic_values.append(mic_initial + "  (no conectado)")
+            mic_initial = mic_initial + "  (no conectado)"
+        self._labeled_dropdown(
+            cfg, "MICRÓFONO", row=10, col=0, colspan=2,
+            values=mic_values,
+            initial=mic_initial,
+            command=self._input_device_changed,
+            attr_name="mic_menu",
         )
 
         # Toggles.
@@ -1310,6 +1332,13 @@ class AppUI:
             "error": ERROR,
         }
 
+    def _input_device_changed(self, label):
+        label = (label or "").replace("  (no conectado)", "")
+        name = "" if label == audio_devices.DEFAULT_LABEL else label
+        self._initial["input_device_name"] = name
+        if self.on_input_device_change:
+            self.on_input_device_change(name)
+
     def _theme_changed(self, label):
         key = themes.LABEL_TO_KEY.get(label)
         if not key or key == self._theme_key:
@@ -1350,6 +1379,8 @@ class AppUI:
             ini["initial_prompt"] = self.initial_prompt_box.get("1.0", "end").strip()
             ini["hotwords"] = self._vocab_hotwords_text()
             ini["ui_theme"] = self._theme_key
+            mic = self.mic_menu.get().replace("  (no conectado)", "")
+            ini["input_device_name"] = "" if mic == audio_devices.DEFAULT_LABEL else mic
         except Exception:
             pass
 

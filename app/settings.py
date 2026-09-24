@@ -47,6 +47,10 @@ DEFAULTS = {
     # El usuario dijo "ahora no" a la descarga del paquete NVIDIA (2.7.0+).
     # No se vuelve a preguntar al arrancar; queda el botón en la UI.
     "gpu_pack_declined": False,
+    # Asistente de primer arranque (2.8.0): se muestra una sola vez.
+    "first_run_done": False,
+    # Micrófono elegido, por NOMBRE (vacío = predeterminado del sistema).
+    "input_device_name": "",
     "batched": config.DEFAULT_BATCHED,
     "batch_size": config.DEFAULT_BATCH_SIZE,
     # Transcripción incremental (solo diseño; desactivada)
