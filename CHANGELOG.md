@@ -3,6 +3,10 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.11.2 — 2026-09-24
+
+- Segunda entrega por auto-actualización (prueba real: la 2.11.1 se actualizó sola a la 2.11.2 desde un servidor simulado de releases).
+
 ## 2.11.1 — 2026-09-24
 
 - Primera versión entregada por auto-actualización (prueba real del flujo completo: detección, descarga verificada, instalación silenciosa por usuario y reinicio).
