@@ -939,7 +939,7 @@ class Controller:
 
     def _do_rebind(self):
         try:
-            self.ui.set_rebind_mode(True)
+            self.ui.set_rebind_mode(True, self._rebind_target)
             self._log("[hotkey] esperando nueva combinación... (pulsa la tecla; Esc cancela)")
             # Para a que el hook actual no fire mientras captura la nueva tecla.
             try:
@@ -958,6 +958,12 @@ class Controller:
                 not new_hk
                 or new_hk.lower() in ("esc", "escape")
             )
+            if not cancelled:
+                # keyboard.read_hotkey devuelve nombres localizados en un
+                # Windows en español ("mayusculas+windows izquierda"):
+                # guardamos siempre la forma canónica ("shift+windows").
+                from app.hotkeys import canonical_hotkey
+                new_hk = canonical_hotkey(new_hk) or new_hk
 
             if cancelled:
                 self._log("[hotkey] rebind cancelado, restaurando hotkey anterior")
@@ -995,7 +1001,7 @@ class Controller:
                 f"(la tecla queda suprimida del sistema mientras esté pulsada)"
             )
         finally:
-            self.ui.set_rebind_mode(False)
+            self.ui.set_rebind_mode(False, self._rebind_target)
             self._rebinding = False
 
     def _on_initial_prompt_toggle(self, enabled: bool):

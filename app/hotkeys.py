@@ -1,4 +1,5 @@
 import threading
+import unicodedata
 
 import keyboard
 
@@ -17,6 +18,72 @@ _KEY_ALIASES = {
 }
 
 _MODIFIERS = {"ctrl", "alt", "shift", "windows"}
+
+# La librería `keyboard` nombra las teclas con GetKeyNameText, que en un
+# Windows en español devuelve "Windows izquierda", "Mayúsculas", "Bloq Mayús"…
+# (en inglés "left windows", "left shift"). Por eso los modificadores se
+# reconocen por SCAN CODE (independiente del idioma y de la distribución) y
+# los nombres localizados quedan solo como respaldo (rebind, settings viejos).
+_SCAN_TO_KEY = {
+    29: "ctrl", 285: "ctrl",          # 0x1D (izq) / 0x11D (der)
+    42: "shift", 54: "shift",         # 0x2A / 0x36
+    56: "alt", 312: "alt",            # 0x38 / 0x138 (AltGr)
+    91: "windows", 92: "windows",     # 0x5B / 0x5C
+    58: "capslock",                   # 0x3A
+    57: "space",                      # 0x39
+}
+_VK_TO_KEY = {                        # eventos inyectados sin scan code (scan_code = -vk)
+    0x11: "ctrl", 0xA2: "ctrl", 0xA3: "ctrl",
+    0x10: "shift", 0xA0: "shift", 0xA1: "shift",
+    0x12: "alt", 0xA4: "alt", 0xA5: "alt",
+    0x5B: "windows", 0x5C: "windows",
+    0x14: "capslock", 0x20: "space",
+}
+_LOCALIZED_ALIASES = {
+    # español
+    "windows izquierda": "windows", "windows derecha": "windows", "windows izq": "windows",
+    "mayusculas": "shift", "mayus": "shift", "mayus izquierda": "shift", "mayus derecha": "shift",
+    "mayusculas izquierda": "shift", "mayusculas derecha": "shift",
+    "control": "ctrl", "control izquierda": "ctrl", "control derecha": "ctrl", "ctrl derecha": "ctrl",
+    "ctrl izquierda": "ctrl",
+    "alt derecha": "alt", "alt izquierda": "alt", "alt gr": "alt",
+    "bloq mayus": "capslock", "bloq mayusculas": "capslock",
+    "espacio": "space", "barra espaciadora": "space", "spacebar": "space",
+    # inglés (variantes que emite la librería)
+    "left windows": "windows", "right windows": "windows", "left win": "windows", "right win": "windows",
+    "left shift": "shift", "right shift": "shift",
+    "left ctrl": "ctrl", "right ctrl": "ctrl", "left control": "ctrl", "right control": "ctrl",
+    "left alt": "alt", "right alt": "alt", "left menu": "alt", "right menu": "alt", "altgr": "alt",
+    "caps lock": "capslock", "caps": "capslock",
+}
+
+
+def _fold(name: str) -> str:
+    """minúsculas y sin tildes: 'Mayúsculas' → 'mayusculas'."""
+    n = unicodedata.normalize("NFKD", (name or "").strip().lower())
+    return "".join(c for c in n if not unicodedata.combining(c))
+
+
+def _canonical_key(event) -> str:
+    """Nombre canónico de la tecla de un evento de `keyboard`: primero por
+    scan code (modificadores), luego por nombre (con alias localizados)."""
+    sc = getattr(event, "scan_code", None)
+    if isinstance(sc, int):
+        if sc > 0 and sc in _SCAN_TO_KEY:
+            return _SCAN_TO_KEY[sc]
+        if sc < 0 and -sc in _VK_TO_KEY:
+            return _VK_TO_KEY[-sc]
+    return _canonicalize_event_name(getattr(event, "name", None) or "")
+
+
+def canonical_hotkey(hotkey: str) -> str:
+    """'ctrl+mayusculas+windows izquierda' (lo que devuelve keyboard.read_hotkey
+    en un Windows en español) → 'ctrl+shift+windows'. Sin duplicados."""
+    out = []
+    for k in _normalize_keys(hotkey or ""):
+        if k not in out:
+            out.append(k)
+    return "+".join(out)
 # Modificadores que Windows interpreta al SOLTARLOS si no se pulsó otra tecla
 # entre medias: Win abre el menú Inicio, Alt activa la barra de menús.
 _MASKED_MODIFIERS = {"windows", "alt"}
@@ -42,25 +109,20 @@ def _mask_win_key():
 
 
 def _normalize_keys(hotkey: str) -> list[str]:
-    parts = [p.strip().lower() for p in hotkey.split("+") if p.strip()]
-    return [_KEY_ALIASES.get(p, p) for p in parts]
+    parts = [p.strip() for p in hotkey.split("+") if p.strip()]
+    out = []
+    for p in parts:
+        low = p.lower()
+        folded = _fold(p)
+        out.append(_KEY_ALIASES.get(low) or _LOCALIZED_ALIASES.get(folded) or low)
+    return out
 
 
 def _canonicalize_event_name(name: str) -> str:
     if not name:
         return ""
     n = name.lower()
-    if n in ("left ctrl", "right ctrl"):
-        return "ctrl"
-    if n in ("left alt", "right alt", "alt gr", "altgr"):
-        return "alt"
-    if n in ("left shift", "right shift"):
-        return "shift"
-    if n in ("left windows", "right windows", "left win", "right win"):
-        return "windows"
-    if n in ("caps lock", "caps"):
-        return "capslock"
-    return n
+    return _KEY_ALIASES.get(n) or _LOCALIZED_ALIASES.get(_fold(name)) or n
 
 
 class HotkeyManager:
@@ -129,7 +191,7 @@ class HotkeyManager:
         # Devuelve False → suprime el evento (no llega al input activo).
         # En caso de cualquier error → True (no romper el teclado del usuario).
         try:
-            name = _canonicalize_event_name(event.name or "")
+            name = _canonical_key(event)
 
             # Tecla fuera de nuestro hotkey: siempre dejar pasar.
             if name not in self._keys:
@@ -254,7 +316,7 @@ class MultiHotkeyManager(HotkeyManager):
 
     def _on_event(self, event):
         try:
-            name = _canonicalize_event_name(event.name or "")
+            name = _canonical_key(event)
             if name not in self._all_keys():
                 return True
             if not self.is_enabled():

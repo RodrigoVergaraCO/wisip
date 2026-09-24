@@ -43,9 +43,10 @@ def check(name, ok, detail=""):
 
 
 class _Ev:
-    def __init__(self, name, kind):
+    def __init__(self, name, kind, scan=None):
         self.name = name
         self.event_type = kind
+        self.scan_code = scan
 
 
 def main():
@@ -153,6 +154,29 @@ def main():
         check("F9 dispara y no inyecta fantasma", fired == [("press", "translate"), ("release", "translate")] and masked == [], str((fired, masked)))
         check("rebind cambia el chord", m.current_for("translate") == "f9" and m.current == "ctrl+windows+space")
         m.stop(); check("stop deja el chord activo en None", m._fired is None)
+        # 7) Windows en español: la librería nombra las teclas "windows izquierda",
+        #    "mayusculas"… El gestor reconoce los modificadores por SCAN CODE.
+        m.rebind("dictate", "ctrl+windows"); m.rebind("translate", "ctrl+windows+shift")
+        m._keys = {n: hk._normalize_keys(v) for n, v in m._hotkeys.items()}
+        fired.clear(); masked.clear()
+        r = [m._on_event(_Ev("ctrl", hk.keyboard.KEY_DOWN, scan=29)),
+             m._on_event(_Ev("windows izquierda", hk.keyboard.KEY_DOWN, scan=91)),
+             m._on_event(_Ev("mayusculas", hk.keyboard.KEY_DOWN, scan=42))]; time.sleep(0.05)
+        check("teclas físicas con nombre en español disparan (scan code)",
+              fired == [("press", "dictate"), ("switch", "dictate", "translate")] and r == [True, False, False], str((fired, r)))
+        m._on_event(_Ev("mayusculas", hk.keyboard.KEY_UP, scan=42)); time.sleep(0.05)
+        check("soltar 'mayusculas' (scan 42) libera", fired[-1] == ("release", "translate"), str(fired))
+        m._on_event(_Ev("windows izquierda", hk.keyboard.KEY_UP, scan=91)); m._on_event(_Ev("ctrl", hk.keyboard.KEY_UP, scan=29))
+        fired.clear()
+        press("windows derecha", "ctrl"); time.sleep(0.05)   # sin scan code: alias por nombre
+        check("alias 'windows derecha' sin scan code", fired == [("press", "dictate")], str(fired))
+        release("ctrl", "windows derecha"); time.sleep(0.05)
+        check("canonical_hotkey('ctrl+mayusculas+windows izquierda') == 'ctrl+shift+windows'",
+              hk.canonical_hotkey("ctrl+mayusculas+windows izquierda") == "ctrl+shift+windows", hk.canonical_hotkey("ctrl+mayusculas+windows izquierda"))
+        check("canonical_hotkey('Mayús+Bloq Mayús') == 'shift+capslock'",
+              hk.canonical_hotkey("Mayús+Bloq Mayús") == "shift+capslock", hk.canonical_hotkey("Mayús+Bloq Mayús"))
+        check("canonical_hotkey('|') == '|'", hk.canonical_hotkey("|") == "|")
+        m.stop()
     finally:
         hk._mask_win_key = orig_mask
 

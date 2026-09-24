@@ -3,6 +3,21 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.12.2 — 2026-09-24
+
+- **Los atajos con Win y Shift no funcionaban en un Windows en español.** La
+  librería de teclado nombra las teclas físicas con el texto localizado de
+  Windows ("windows izquierda", "mayusculas") y Wisip solo entendía los
+  nombres en inglés, así que Ctrl + Win + Shift nunca se completaba (Ctrl sí,
+  porque se llama igual en los dos idiomas). Ahora los modificadores se
+  reconocen por scan code, independiente del idioma y de la distribución, y
+  los nombres localizados quedan como alias de respaldo. Al capturar un atajo
+  nuevo se guarda siempre la forma canónica (`ctrl+shift+windows`).
+- El aviso "Pulsa la nueva combinación…" aparece en la tarjeta del atajo que
+  se está cambiando: antes, al cambiar el de dictar y traducir, salía en la
+  de dictar.
+- El log registra qué chord se completó, con qué tecla, y qué tecla lo soltó.
+
 ## 2.12.1 — 2026-09-24
 
 - **Atajos por defecto sin Espacio**: dictar = `Ctrl + Win`, traducir =

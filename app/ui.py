@@ -10,6 +10,10 @@ from . import audio_devices
 from . import config
 from . import themes
 from .onboarding import pretty_hotkey
+
+TRANSLATE_HINT_TEXT = ("Hablas en un idioma y el texto sale en el otro (español ↔ inglés), sin internet. "
+                       "Si ya estás dictando, añade la tecla extra sin soltar y se traduce igual. "
+                       "El primer uso descarga el traductor (~80 MB).")
 from .version import __version__
 
 try:
@@ -600,13 +604,11 @@ class AppUI:
         )
         self.translate_target_menu.set(config.TRANSLATE_TARGET_LABELS.get(tgt_code, "Inglés"))
         self.translate_target_menu.pack(side="left", padx=8)
-        ctk.CTkLabel(
-            tleft,
-            text="Hablas en un idioma y el texto sale en el otro (español ↔ inglés), sin internet. "
-                 "Si ya estás dictando, añade la tecla extra sin soltar y se traduce igual. "
-                 "El primer uso descarga el traductor (~80 MB).",
+        self.translate_hint_label = ctk.CTkLabel(
+            tleft, text=TRANSLATE_HINT_TEXT,
             font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left", wraplength=560,
-        ).pack(anchor="w")
+        )
+        self.translate_hint_label.pack(anchor="w")
         self.translate_rebind_btn = ctk.CTkButton(
             tinner, text="👆", command=lambda: self._on_rebind_clicked("translate"),
             fg_color="transparent", hover_color=BG_SURFACE_HIGH, text_color=PRIMARY,
@@ -1873,10 +1875,22 @@ class AppUI:
         except Exception:
             _do()
 
-    def set_rebind_mode(self, active: bool):
-        """UI feedback durante el modo 'pulsa la nueva tecla'."""
+    def set_rebind_mode(self, active: bool, target: str = "dictate"):
+        """UI feedback durante el modo 'pulsa la nueva tecla', en la tarjeta
+        del atajo que se está cambiando (dictar o dictar y traducir)."""
         def _do():
             try:
+                if target == "translate":
+                    if active:
+                        self.translate_key_label.configure(text="…")
+                        self.translate_hint_label.configure(
+                            text="Pulsa la nueva combinación…  ·  Esc para cancelar", text_color=SECONDARY)
+                        self.translate_rebind_btn.configure(text="⏺", text_color=SECONDARY)
+                    else:
+                        self.translate_key_label.configure(text=pretty_hotkey(self._translate_hotkey_label))
+                        self.translate_hint_label.configure(text=TRANSLATE_HINT_TEXT, text_color=TEXT_MUTED)
+                        self.translate_rebind_btn.configure(text="👆", text_color=PRIMARY)
+                    return
                 if active:
                     self.hotkey_main_label.configure(
                         text="Pulsa la nueva combinación…",

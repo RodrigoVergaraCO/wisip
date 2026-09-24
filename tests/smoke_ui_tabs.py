@@ -88,6 +88,16 @@ def main():
     ui._toggle_advanced(); pump()
     check("prompt oculto tras cerrar", not ui._prompt_card.winfo_manager())
 
+    print("── Modo rebind en la tarjeta correcta ──")
+    ui.set_rebind_mode(True, "translate"); pump(3)
+    check("rebind traducir: la tecla de traducir muestra …", ui.translate_key_label.cget("text") == "…", ui.translate_key_label.cget("text"))
+    check("rebind traducir: la tecla de dictar NO cambia", ui.hotkey_key_label.cget("text").strip() == "Ctrl + Win", ui.hotkey_key_label.cget("text"))
+    ui.set_rebind_mode(False, "translate"); pump(3)
+    check("fin del rebind: tecla de traducir restaurada", "Ctrl + Win + Shift" in ui.translate_key_label.cget("text"), ui.translate_key_label.cget("text"))
+    ui.set_rebind_mode(True, "dictate"); pump(3)
+    check("rebind dictar: la tecla de dictar muestra …", ui.hotkey_key_label.cget("text") == "…", ui.hotkey_key_label.cget("text"))
+    ui.set_rebind_mode(False, "dictate"); pump(3)
+
     print("── Setters thread-safe ──")
     ui.set_backend("CUDA float16"); ui.set_transcription("Hola mundo"); ui.set_status("idle")
     ui.set_history(["uno", "dos"]); ui.set_gpu_pack_button("⚡ Descargar aceleración NVIDIA")
