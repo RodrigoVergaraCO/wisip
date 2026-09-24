@@ -268,6 +268,8 @@ class MultiHotkeyManager(HotkeyManager):
                         if satisfied:
                             chosen = max(satisfied, key=lambda n: len(self._keys[n]))
                             self._fired = chosen
+                            self.on_log(f"[hotkey] chord {chosen} completo con '{name}' "
+                                        f"(pulsadas: {sorted(self._pressed)})")
                             threading.Thread(
                                 target=self._fire,
                                 args=(self.on_press, (chosen,), _needs_mask(self._keys[chosen])),
@@ -284,6 +286,7 @@ class MultiHotkeyManager(HotkeyManager):
                         if longer:
                             new = max(longer, key=lambda n: len(self._keys[n]))
                             self._fired = new
+                            self.on_log(f"[hotkey] cambio {cur} → {new} con '{name}' sin soltar")
                             if self.on_switch is not None:
                                 threading.Thread(target=self._fire, args=(self.on_switch, (cur, new)),
                                                  daemon=True).start()
@@ -297,6 +300,7 @@ class MultiHotkeyManager(HotkeyManager):
                     if self._fired is not None and not all(k in self._pressed for k in self._keys[self._fired]):
                         done = self._fired
                         self._fired = None
+                        self.on_log(f"[hotkey] chord {done} soltado por '{name}'")
                         threading.Thread(target=self._safe_call1, args=(self.on_release, done),
                                          daemon=True).start()
             return True
