@@ -3,6 +3,10 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.11.1 — 2026-09-24
+
+- Primera versión entregada por auto-actualización (prueba real del flujo completo: detección, descarga verificada, instalación silenciosa por usuario y reinicio).
+
 ## 2.11.0 — 2026-09-24
 
 - **Auto-actualización** (`app/updater.py`): la app consulta la última release

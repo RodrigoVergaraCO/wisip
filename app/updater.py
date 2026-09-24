@@ -197,13 +197,26 @@ def installed_exe_after_update() -> str:
     return str(per_user)
 
 
+def write_apply_script(installer: Path, relaunch_exe: str) -> Path:
+    """Escribe el .cmd auxiliar junto al instalador. Un archivo evita el
+    problema de comillas: pasar "instalador /VERYSILENT & start ..." como
+    argumento a cmd.exe hacía que subprocess escapara las comillas internas
+    (\") y cmd no ejecutaba nada (fallo real 2026-09-24)."""
+    log = installer.parent / "install.log"
+    script = installer.parent / "apply_update.cmd"
+    script.write_text(
+        "@echo off\r\n"
+        f'"{installer}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART /LOG="{log}"\r\n'
+        f'start "" "{relaunch_exe}"\r\n',
+        encoding="utf-8",
+    )
+    return script
+
+
 def install_command(installer: Path, relaunch_exe: str) -> list:
-    """Comando del proceso auxiliar: instala en silencio y relanza Wisip."""
-    return [
-        "cmd.exe", "/d", "/c",
-        f'"{installer}" /VERYSILENT /SUPPRESSMSGBOXES /NORESTART & '
-        f'start "" "{relaunch_exe}"',
-    ]
+    """Comando del proceso auxiliar: ejecuta el .cmd que instala en silencio
+    y relanza Wisip."""
+    return ["cmd.exe", "/d", "/c", str(write_apply_script(installer, relaunch_exe))]
 
 
 def install_update(installer: Path, on_log=None) -> bool:

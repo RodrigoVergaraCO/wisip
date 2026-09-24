@@ -132,8 +132,11 @@ def main():
             check("archivo diminuto → error", True)
 
         print("── Instalación ──")
-        cmd = updater.install_command(Path(r"C:\x\Wisip-Setup-99.0.0.exe"), r"C:\y\Wisip.exe")
-        check("comando auxiliar", cmd[0] == "cmd.exe" and "/VERYSILENT" in cmd[-1] and 'start "" "C:\\y\\Wisip.exe"' in cmd[-1], str(cmd))
+        cmd = updater.install_command(p, r"C:\y\Wisip.exe")
+        script = Path(cmd[-1]); body = script.read_text(encoding="utf-8")
+        check("comando auxiliar = cmd /c apply_update.cmd", cmd[:3] == ["cmd.exe", "/d", "/c"] and script.name == "apply_update.cmd" and script.is_file(), str(cmd))
+        check("el .cmd instala en silencio y relanza", "/VERYSILENT" in body and f'"{p}"' in body and 'start "" "C:\\y\\Wisip.exe"' in body and "/LOG=" in body, body)
+        check("sin comillas escapadas", '\\"' not in body)
         check("relanzar apunta a la instalación por usuario", updater.installed_exe_after_update().lower().endswith(r"programs\wisip\wisip.exe"))
         os.environ.pop("WISIP_UPDATE_DEV", None)
         check("en desarrollo no instala", updater.install_update(p, logs.append) is False and any("modo desarrollo" in m for m in logs))
