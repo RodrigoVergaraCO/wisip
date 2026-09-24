@@ -60,23 +60,44 @@ def _decapitalize_first_word(text: str) -> str:
 #      palabra que el usuario repite al retomar ("mejorar mi" + "mi github").
 #      Se descarta la copia del tramo siguiente.
 _LOWER_START_RE = re.compile(r"^[¿¡\"'(\[]*[a-záéíóúñü]")
-_LAST_WORD_RE = re.compile(r"([A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9]+)[\s.,;:!?…)\]\"']*$")
-_FIRST_WORD_RE_ANY = re.compile(r"^[¿¡\"'(\[]*([A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9]+)")
+_WORD_TOKEN_RE = re.compile(r"[A-Za-zÁÉÍÓÚÑÜáéíóúñü0-9]+")
+_BOUNDARY_MAX_OVERLAP = 3
+# Palabras que sí abren frase corta tras un punto de tramo ("Muchas gracias.",
+# "Listo.", "Ya está."): NO se pegan a la frase anterior.
+_SHORT_TAIL_STARTERS = {
+    "gracias", "muchas", "listo", "lista", "ok", "okay", "vale", "perfecto", "bueno",
+    "hola", "adiós", "adios", "chao", "chau", "sí", "si", "no", "entonces", "ahora",
+    "luego", "después", "bien", "claro", "exacto", "correcto", "fin", "dale", "ya",
+    "eso", "esto", "es", "está", "así", "hecho", "thanks", "thank", "done", "yes",
+    "okey", "nada", "espera",
+}
 
 
 def _drop_boundary_duplicate(prev: str, part: str) -> str:
-    """Si el tramo nuevo empieza con la misma palabra con la que terminó el
-    anterior, quita esa primera palabra (y la coma/espacio que la siga)."""
-    m_prev = _LAST_WORD_RE.search(prev)
-    m_next = _FIRST_WORD_RE_ANY.match(part)
-    if not m_prev or not m_next:
-        return part
-    a, b = m_prev.group(1), m_next.group(1)
-    if len(b) < 2 or a.lower() != b.lower():
-        return part
-    rest = part[m_next.end():]
-    rest = re.sub(r"^[\s,]+", "", rest)
-    return rest
+    """Si el tramo nuevo empieza repitiendo las últimas 1-3 palabras del
+    anterior ("mejorar mi" + "mi github", "o sea," + "o sea, 5.25"), quita esa
+    repetición del tramo nuevo (y la coma/espacio que la siga)."""
+    prev_words = [w.lower() for w in _WORD_TOKEN_RE.findall(prev)][-_BOUNDARY_MAX_OVERLAP:]
+    head = list(_WORD_TOKEN_RE.finditer(part))[:_BOUNDARY_MAX_OVERLAP]
+    for n in range(min(len(prev_words), len(head)), 0, -1):
+        if [m.group(0).lower() for m in head[:n]] != prev_words[-n:]:
+            continue
+        if n == 1 and len(head[0].group(0)) < 2:
+            continue  # "voy a" + "a la máquina": una letra no cuenta
+        rest = part[head[n - 1].end():]
+        return re.sub(r"^[\s,;:]+", "", rest)
+    return part
+
+
+def _is_short_tail(part: str) -> bool:
+    """Tramo de 1-2 palabras que no abre frase ("Correctly.", "blancas."):
+    casi siempre es la cola de la frase anterior tras una pausa."""
+    words = _WORD_TOKEN_RE.findall(part)
+    if not 1 <= len(words) <= 2:
+        return False
+    if part.rstrip().endswith(("?", "!")):
+        return False
+    return words[0].lower() not in _SHORT_TAIL_STARTERS
 
 
 def join_chunks(parts: list) -> str:
@@ -91,9 +112,15 @@ def join_chunks(parts: list) -> str:
             part = _drop_boundary_duplicate(prev, part)
             if not part:
                 continue
-            if prev.endswith(".") and not prev.endswith("...")                     and _LOWER_START_RE.match(part):
+            chunk_dot = prev.endswith(".") and not prev.endswith("...")
+            if chunk_dot and _LOWER_START_RE.match(part):
                 # Punto de cierre de tramo + continuación en minúscula: sobra.
                 out[-1] = prev[:-1].rstrip()
+            elif chunk_dot and _is_short_tail(part):
+                # "transcribed." + "Correctly.": cola corta capitalizada por
+                # Whisper al arrancar el tramo; es continuación.
+                out[-1] = prev[:-1].rstrip()
+                part = _decapitalize_first_word(part)
             elif not prev.endswith(_SENT_END_CHARS):
                 part = _decapitalize_first_word(part)
         out.append(part)

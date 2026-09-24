@@ -3,6 +3,15 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.9.1 — 2026-09-24
+
+- Unión de tramos, a partir de una lectura de prueba real de 90 s (14 tramos):
+  se elimina la repetición de hasta 3 palabras en la frontera ("o sea, o sea,")
+  y una cola corta capitalizada tras el punto de tramo se pega a la frase
+  anterior ("transcribed. Correctly." → "transcribed correctly."), salvo que
+  abra frase ("Muchas gracias.", "Listo.", "Ya está."). 12 checks nuevos en
+  `scripts/check_join_chunks.py`.
+
 ## 2.9.0 — 2026-09-24
 
 - **Licencias** (`app/license.py`): prueba gratuita de 30 días desde el primer

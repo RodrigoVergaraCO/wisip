@@ -99,6 +99,38 @@ def main():
     check("una letra no cuenta como duplicado",
           ["voy a", "a la máquina."],
           "voy a a la máquina.")
+    check("caso real: 'o sea, o sea' (dos palabras en la frontera)",
+          ["El precio es 5 dólares con 25 centavos, o sea,", "o sea, 5.25 y el servidor corre en el puerto 3000."],
+          "El precio es 5 dólares con 25 centavos, o sea, 5.25 y el servidor corre en el puerto 3000.")
+    check("tres palabras repetidas en la frontera",
+          ["vamos a ver la base de datos", "la base de datos del cliente."],
+          "vamos a ver la base de datos del cliente.")
+    check("repetición parcial NO cuenta (solo coincide una de dos)",
+          ["revisa la base", "de datos nueva."],
+          "revisa la base de datos nueva.")
+
+    print("\n── 3b. Cola corta capitalizada tras punto de tramo (2026-09-23) ──")
+    check("caso real: transcribed. Correctly.",
+          ["This is the second English sentence and it should also be transcribed.", "Correctly."],
+          "This is the second English sentence and it should also be transcribed correctly.")
+    check("dos palabras de cola",
+          ["Se genera en el archivo PSD con todas las capas.", "Rasterizadas también."],
+          "Se genera en el archivo PSD con todas las capas rasterizadas también.")
+    check("'Muchas gracias.' final NO se pega",
+          ["Con esto terminamos la prueba.", "Muchas gracias."],
+          "Con esto terminamos la prueba. Muchas gracias.")
+    check("'Listo.' NO se pega",
+          ["La cuenta quedó activa.", "Listo."],
+          "La cuenta quedó activa. Listo.")
+    check("'Ya está.' NO se pega",
+          ["La cuenta quedó activa.", "Ya está."],
+          "La cuenta quedó activa. Ya está.")
+    check("cola corta con '?' NO se pega",
+          ["Revisa el letrero.", "¿Correcto?"],
+          "Revisa el letrero. ¿Correcto?")
+    check("frase de 3+ palabras tras punto se respeta",
+          ["Ya quedó listo.", "Ahora vamos con el segundo paso."],
+          "Ya quedó listo. Ahora vamos con el segundo paso.")
 
     print("\n── 4. Robustez ──")
     check("tramos vacíos se ignoran", ["Hola.", "", None, "Sigo aquí."], "Hola. Sigo aquí.")
