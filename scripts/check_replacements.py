@@ -63,10 +63,8 @@ CASES = [
     ("Quiero ver el pnln de los trades cerrados.", "PNL"),
     ("Eso puede ser un rookpool de esos de cripto.", "rug pull"),
     ("Puedes scrapear wallets de leaders boards públicos.", "leaderboards"),
-    ("Kimmy va a manejar su effort en Extra High.", "Kimi"),
     ("Necesito la apik para conectar el servicio.", "API key"),
     ("Copia el AppKey en el panel de configuración.", "API key"),
-    ("Abre el ScreenenViewer para revisar la sesión.", "ScreenViewer"),
     # --- registro 2026-09-23 (marcas en minúscula, garbles inambiguos) ---
     ("La app de amazon me manda el código al gmail.", "app de Amazon"),
     ("La app de amazon me manda el código al gmail.", "al Gmail"),

@@ -424,7 +424,10 @@ V8_DEFAULT_INITIAL_PROMPT = (
 # IMPORTANTE: prompt + hotwords COMPARTEN el presupuesto de ~224 tokens del
 # contexto de Whisper. Si la suma se pasa, el recorte desestabiliza el primer
 # segmento (duplicaba el arranque del dictado). Mantén ambos cortos.
-DEFAULT_INITIAL_PROMPT = (
+# v9: el prompt del desarrollador (dominio dev: workers, Coolify, n8n…). Se
+# conserva para quien ya lo tenga guardado; NO se migra a v10 automáticamente
+# porque ese vocabulario le sirve a ese usuario.
+V9_DEFAULT_INITIAL_PROMPT = (
     "Ayer hice el deploy de los workers en el backend y el build quedó "
     "listo; luego commit, push y un pull request a la branch main con las "
     "features del release. Sometimes I dictate a whole sentence in English "
@@ -433,6 +436,18 @@ DEFAULT_INITIAL_PROMPT = (
     "n8n, Shopify, WhatsApp, Wasender, Rappi, ChatGPT, Whisper y Wisip. Mi "
     "correo es usuario@dominio.com y el sitio es wisip.ai/dashboard, donde "
     "manejo login, sesión y token de autenticación."
+)
+# v10 (2026-09-23): prompt de FÁBRICA para el producto. Genérico: trabajo de
+# oficina + algo de tecnología, español con una frase en inglés, un correo y
+# una URL de ejemplo. Sin vocabulario personal de nadie: lo suyo lo pone cada
+# usuario en la pestaña Vocabulario (hotwords + reemplazos).
+DEFAULT_INITIAL_PROMPT = (
+    "Hoy respondí los correos, contesté por WhatsApp y dejé listo el informe "
+    "con las cifras del mes; luego hice el deploy, el commit y el push al "
+    "repositorio. Sometimes I dictate a whole sentence in English and it "
+    "stays in English. Uso ChatGPT, Google, Excel y la API con su token de "
+    "login. Mi correo es usuario@dominio.com y el sitio es ejemplo.com/panel, "
+    "donde manejo la sesión y la autenticación."
 )
 
 # Hotwords: vocabulario que faster-whisper inyecta en CADA ventana de audio
@@ -447,10 +462,19 @@ V1_DEFAULT_HOTWORDS = (
     "workers, deploy, build, commit, push, branch, merge, release, feature, "
     "endpoint, webhook, payload, fetch, frontend, backend, token"
 )
-DEFAULT_HOTWORDS = (
+# v2: hotwords del desarrollador (con Seedance / kie.ai). Se conservan por
+# si alguna instalación las tiene guardadas; no se migran.
+V2_DEFAULT_HOTWORDS = (
     "workers, deploy, build, commit, push, branch, merge, release, feature, "
     "endpoint, webhook, payload, fetch, frontend, backend, token, Seedance, "
     "kie.ai"
+)
+# v3 (2026-09-23): hotwords de FÁBRICA genéricas para el producto. Términos en
+# inglés que cualquier hispanohablante mete en una frase y que Whisper tiende
+# a castellanizar. Cortas a propósito: cada usuario añade las suyas.
+DEFAULT_HOTWORDS = (
+    "deploy, commit, push, backend, frontend, API, token, login, email, "
+    "ChatGPT, WhatsApp, Excel, Google, YouTube"
 )
 
 # Modo idioma mixto (rev3): activa `multilingual=True` en faster-whisper →

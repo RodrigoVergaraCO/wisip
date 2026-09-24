@@ -218,18 +218,10 @@ DEFAULT_PERSONAL_REPLACEMENTS = {
     "wism": "Wisip",
     "wisin": "Wisip",
     "wisp": "Wisip",
-    # Dropi (plataforma de dropshipping): Whisper la oye "Dropip" a veces
-    # (registro 2026-07-21) y sin mayúscula.
-    "dropip": "Dropi",
-    "dropi": "Dropi",
-    # Kimi (modelo de IA): Whisper lo oye "Kimmy" (registro 2026-07-24). Va en
-    # personales porque "Kimmy" es nombre real de persona para otros usuarios.
-    "kimmy": "Kimi",
-    "kimi": "Kimi",
-    # ScreenViewer: Whisper duplica la sílaba (registro 2026-07-23).
-    "screenenviewer": "ScreenViewer",
     # "API key" dictada sale a veces como "AppKey" (registro 2026-07-24).
     "appkey": "API key",
+    # 2026-09-23: Dropi, Kimi y ScreenViewer salieron de los defaults (eran
+    # vocabulario del desarrollador; viven en SU personal_replacements.json).
 }
 
 # 4) safe_general — correcciones de español inambiguas (no son palabras reales).
