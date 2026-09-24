@@ -9,8 +9,13 @@ BIENVENIDO AL INSTALADOR DE WISIP
   correos, formularios, lo que sea.
 
   Funciona 100% offline. No hay claves de API, no hay suscripciones, no
-  hay coste recurrente. El reconocimiento corre en tu CPU con
+  hay coste recurrente. El reconocimiento corre en tu propio equipo con
   faster-whisper (la implementación local de Whisper de OpenAI).
+
+  La primera vez necesita internet: descarga el modelo de voz (0,5 a 1,6 GB
+  según el modelo) y, si tienes una tarjeta NVIDIA, te ofrece descargar el
+  paquete de aceleración GPU (~1,2 GB). Ambas descargas muestran su
+  progreso y se hacen una sola vez.
 
 
 ANTES DE INSTALAR, REVISA QUE:

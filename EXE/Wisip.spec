@@ -55,7 +55,12 @@ import sysconfig as _sysconfig
 
 NVIDIA_DATAS = []
 _nv_root = Path(_sysconfig.get_paths()["purelib"]) / "nvidia"
-for _bin in _glob.glob(str(_nv_root / "*" / "bin")):
+# 2.7.0: por defecto NO se empaquetan (la app descarga el paquete NVIDIA a
+# %LOCALAPPDATA%\Wisip\cuda cuando detecta una GPU). WISIP_BUNDLE_CUDA=1
+# recupera el build "todo incluido" de 2,2 GB.
+import os as _os
+_bundle_cuda = _os.environ.get("WISIP_BUNDLE_CUDA") == "1"
+for _bin in (_glob.glob(str(_nv_root / "*" / "bin")) if _bundle_cuda else []):
     _bin_path = Path(_bin)
     _dest = str(Path("nvidia") / _bin_path.parent.name / "bin")
     for _f in _bin_path.iterdir():
@@ -64,7 +69,7 @@ for _bin in _glob.glob(str(_nv_root / "*" / "bin")):
 if NVIDIA_DATAS:
     print(f"[Wisip.spec] build GPU: empaquetando {len(NVIDIA_DATAS)} archivos CUDA")
 else:
-    print("[Wisip.spec] build CPU universal (sin paquetes nvidia-* en el venv)")
+    print("[Wisip.spec] build liviano: sin DLLs CUDA (la app las descarga si hay GPU NVIDIA)")
 DATAS += NVIDIA_DATAS
 
 HIDDEN = list(set(

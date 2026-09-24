@@ -90,18 +90,21 @@ when a working GPU is found). Default hotkey is <kbd>|</kbd> (the key left of
 > interpreter so the CUDA libraries are found. Set `WISIP_NO_VENV_REEXEC=1` to
 > disable that guard.
 
-## Installers
+## Installer
 
-`EXE/` contains the full packaging pipeline (PyInstaller `--onedir --windowed`
-+ Inno Setup):
+One installer for everyone, about 70 MB. Everything heavy is downloaded on
+first run, with a progress window, and only once:
 
-| Variant | Size | Notes |
+| Download | Size | When |
 |---|---|---|
-| `Wisip-Setup-x.y.z-CPU.exe` | ~66 MB | Universal, CPU only |
-| `Wisip-Setup-x.y.z-GPU.exe` | ~970 MB | Bundles CUDA 12 DLLs for NVIDIA cards |
+| Whisper model | 480 MB (`small`, CPU) or 1.6 GB (`large-v3-turbo`, GPU) | First start |
+| NVIDIA acceleration pack | ~1.2 GB (cuBLAS / cuDNN / cudart / nvrtc, taken straight from NVIDIA's PyPI wheels by HTTP range requests, checksum-verified) | Offered when an NVIDIA GPU is detected; can be declined and installed later from the app |
 
-See [`EXE/README-build.md`](EXE/README-build.md). Binaries are not published
-as GitHub Releases yet.
+The pack lives in `%LOCALAPPDATA%\Wisip\cuda` and is loaded at startup. AMD
+and Intel GPUs run on CPU for now (see the roadmap). `EXE/` contains the
+packaging pipeline (PyInstaller `--onedir --windowed` + Inno Setup); see
+[`EXE/README-build.md`](EXE/README-build.md). Binaries are not published as
+GitHub Releases yet.
 
 ## How the quality loop works
 
@@ -123,6 +126,7 @@ validators run without loading a model:
 | `scripts/check_tail_guards.py` | trailing-noise trim, closing-phrase and low-confidence discards |
 | `scripts/check_dictation_log.py` | JSONL log, stats, audio retention |
 | `scripts/check_vocab.py` | token meter, personal CRUD, suggestion mining |
+| `scripts/check_setup_assets.py` | first-run downloads: range-based wheel extraction, checksums, cancel, fallback (local HTTP server) |
 
 ## Architecture
 
@@ -135,6 +139,8 @@ app/replacements.py     dictionaries + URL/email pre-processor
 app/postprocessor.py    generic email/URL/symbol normalizer
 app/vocab.py            token meter, personal replacements CRUD, log mining (wordfreq)
 app/dictation_log.py    monthly JSONL + WAV retention
+app/setup_assets.py     first-run downloads: NVIDIA pack (range reads of PyPI wheels) + model
+app/setup_window.py     progress window (model / GPU pack) with cancel
 app/ui.py, themes.py    CustomTkinter window, palettes, Vocabulary tab
 app/floating_bar.py     always-on-top status pill with live mic bars
 app/hotkeys.py, typer.py, tray.py, autostart.py, single_instance.py, error_log.py

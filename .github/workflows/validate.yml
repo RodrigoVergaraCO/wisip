@@ -32,3 +32,5 @@ jobs:
         run: python scripts/check_dictation_log.py
       - name: Vocabulary tab (token meter, mining)
         run: python scripts/check_vocab.py
+      - name: First-run downloads (local HTTP server, no network)
+        run: python scripts/check_setup_assets.py

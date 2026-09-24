@@ -94,6 +94,8 @@ class AppUI:
         on_vocab_remove=None,
         on_vocab_analyze=None,
         on_vocab_ignore=None,
+        # Botón "Descargar aceleración NVIDIA" (2.7.0). Opcional.
+        on_gpu_pack_install=None,
     ):
         self.on_model_change = on_model_change
         self.on_language_change = on_language_change
@@ -122,6 +124,8 @@ class AppUI:
         self.on_vocab_remove = on_vocab_remove
         self.on_vocab_analyze = on_vocab_analyze
         self.on_vocab_ignore = on_vocab_ignore
+        self.on_gpu_pack_install = on_gpu_pack_install
+        self._gpu_pack_btn_text: str | None = None
 
         # Guard para evitar disparar on_model_change cuando lo cambiamos por código.
         self._suppress_model_change = False
@@ -581,9 +585,23 @@ class AppUI:
             row=7, column=0, columnspan=2, sticky="ew", padx=4, pady=(0, 2)
         )
 
+        # Botón de descarga del paquete NVIDIA: solo visible cuando hay GPU
+        # NVIDIA y faltan las DLLs CUDA (lo decide el Controller).
+        self.gpu_pack_btn = ctk.CTkButton(
+            cfg, text=self._gpu_pack_btn_text or "", height=30, corner_radius=8,
+            fg_color=ACCENT_CONTAINER, hover_color=ACCENT_CONTAINER_HOVER,
+            text_color=TEXT, font=self._fnt(12, bold=True),
+            command=self._gpu_pack_clicked,
+        )
+        self.gpu_pack_btn.grid(
+            row=8, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 6)
+        )
+        if not self._gpu_pack_btn_text:
+            self.gpu_pack_btn.grid_remove()
+
         # Tema de color (sistema de paletas; se aplica en vivo y se guarda).
         self._labeled_dropdown(
-            cfg, "TEMA", row=8, col=0, colspan=2,
+            cfg, "TEMA", row=9, col=0, colspan=2,
             values=[themes.THEME_LABELS[k] for k in themes.THEME_KEYS],
             initial=themes.THEME_LABELS.get(self._theme_key, ""),
             command=self._theme_changed,
@@ -1419,6 +1437,14 @@ class AppUI:
     def set_backend(self, backend_str: str):
         self._ui_queue.put(("backend", backend_str))
 
+    def set_gpu_pack_button(self, text: str | None):
+        """Muestra (texto) u oculta (None) el botón de aceleración NVIDIA."""
+        self._ui_queue.put(("gpu_pack", text))
+
+    def _gpu_pack_clicked(self):
+        if self.on_gpu_pack_install:
+            self.on_gpu_pack_install()
+
     def set_transcribing_elapsed(self, seconds: float):
         self._ui_queue.put(("elapsed", seconds))
 
@@ -1617,6 +1643,16 @@ class AppUI:
                     self._last_btn_text = payload
                     prefix = self._BTN_ICONS.get(payload, "")
                     self.toggle_btn.configure(text=prefix + payload)
+                elif kind == "gpu_pack":
+                    self._gpu_pack_btn_text = payload
+                    try:
+                        if payload:
+                            self.gpu_pack_btn.configure(text=payload)
+                            self.gpu_pack_btn.grid()
+                        else:
+                            self.gpu_pack_btn.grid_remove()
+                    except Exception:
+                        pass
                 elif kind == "history":
                     self._history_data = list(payload)
                     self.history_listbox.delete(0, tk.END)

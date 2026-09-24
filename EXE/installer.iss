@@ -7,15 +7,17 @@
 ; Resultado: EXE\installer\Wisip-Setup-1.0.0.exe
 
 #define MyAppName "Wisip"
-#define MyAppVersion "2.6.0"
+#define MyAppVersion "2.7.0"
 #define MyAppPublisher "Wisip"
 #define MyAppExeName "Wisip.exe"
-; Variante del build: "GPU" (con DLLs CUDA para NVIDIA) o "CPU" (universal,
-; ~700 MB más liviano). Se pasa por línea de comandos:
-;   iscc /DVariant=CPU /DSourceDir=dist-cpu\Wisip EXE\installer.iss
-;   iscc /DVariant=GPU EXE\installer.iss
-#ifndef Variant
-  #define Variant "GPU"
+; Desde la 2.7.0 hay UN solo instalador liviano (~70 MB): las DLLs CUDA se
+; descargan desde la app si hay GPU NVIDIA. Para un build "todo incluido"
+; (2,2 GB, WISIP_BUNDLE_CUDA=1 al compilar) se puede etiquetar con:
+;   iscc /DVariant=GPU-full EXE\installer.iss
+#ifdef Variant
+  #define Suffix "-" + Variant
+#else
+  #define Suffix ""
 #endif
 #ifndef SourceDir
   #define SourceDir "Wisip"
@@ -32,7 +34,7 @@ DefaultDirName={autopf}\{#MyAppName}
 DefaultGroupName={#MyAppName}
 DisableProgramGroupPage=yes
 OutputDir=installer
-OutputBaseFilename=Wisip-Setup-{#MyAppVersion}-{#Variant}
+OutputBaseFilename=Wisip-Setup-{#MyAppVersion}{#Suffix}
 SetupIconFile=..\assets\icon.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 UninstallDisplayName={#MyAppName}
@@ -55,9 +57,15 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 [Tasks]
 Name: "desktopicon"; Description: "{cm:CreateDesktopIcon}"; GroupDescription: "{cm:AdditionalIcons}"; Flags: unchecked
 
+[InstallDelete]
+; PyInstaller regenera _internal por completo en cada build: se limpia antes
+; de copiar para no dejar restos de versiones anteriores. Sin esto, actualizar
+; desde un instalador GPU (<= 2.6.0) dejaba 1,9 GB de DLLs CUDA huérfanas en
+; Program Files (verificado 2026-09-23). La configuración vive en %APPDATA%.
+Type: filesandordirs; Name: "{app}\_internal"
+
 [Files]
-; Empaca la carpeta producida por PyInstaller (Wisip\ para GPU, dist-cpu\Wisip
-; para CPU — ver el define SourceDir arriba).
+; Empaca la carpeta producida por PyInstaller (EXE\Wisip por defecto).
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]

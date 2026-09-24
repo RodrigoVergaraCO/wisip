@@ -54,7 +54,10 @@ def _set_app_user_model_id():
 _set_app_user_model_id()
 from app import autostart
 from app import error_log
+from app import setup_assets
+from app import themes
 from app import vocab
+from app.setup_window import SetupWindow
 from app.audio_recorder import AudioRecorder, is_digital_silence
 from app.beeps import Beeps
 from app.dictation_log import DictationLog
@@ -121,6 +124,7 @@ class Controller:
             on_vocab_remove=self._on_vocab_remove,
             on_vocab_analyze=self._on_vocab_analyze,
             on_vocab_ignore=self._on_vocab_ignore,
+            on_gpu_pack_install=self._on_gpu_pack_install,
             initial_settings=self.settings.all(),
             hotkey_label=self.settings.get("hotkey"),
         )
@@ -176,10 +180,11 @@ class Controller:
         self._capslock_was_on: bool | None = None
 
         self.ui.set_history(self.history.items())
-        # Sube a GPU automáticamente (una vez) si hay tarjeta NVIDIA usable y el
-        # usuario sigue en el perfil por defecto antiguo. Debe correr ANTES del
-        # preload para que el modelo cargue ya en el backend rápido.
-        self._autotune_perf_profile()
+        # Preparación inicial en segundo plano: paquete NVIDIA (si hay GPU y
+        # falta) → autotune de perfil/modelo → descarga del modelo con progreso
+        # → carga. El autotune va DESPUÉS del paquete para que vea las DLLs.
+        self._setup_busy = threading.Lock()
+        self._model_download_failed = False
         threading.Thread(target=self._preload_default_model, daemon=True).start()
 
         try:
@@ -297,7 +302,9 @@ class Controller:
         """
         gpu = False
         try:
-            gpu = cuda_available()
+            # cuda_available() da True con solo el driver NVIDIA instalado;
+            # sin las DLLs (cuBLAS/cuDNN) la GPU no es usable de verdad.
+            gpu = cuda_available() and config.cuda_dlls_present()
         except Exception:
             pass
 
@@ -350,7 +357,177 @@ class Controller:
                 pass
 
     def _preload_default_model(self):
+        try:
+            self._first_run_setup()
+        except Exception as e:
+            self._log(f"[setup] preparación inicial falló: {e}")
+            error_log.log_error("preparación inicial", e)
+        if self._model_download_failed:
+            self._set_state("error")
+            self.beeps.error()
+            return
         self._load_model_now(self.settings.get("model"))
+
+    # ─── Preparación inicial (2.7.0): paquete NVIDIA + modelo con progreso ───
+
+    def _new_setup_window(self) -> SetupWindow:
+        pal = themes.get_palette(self.settings.get("ui_theme") or themes.DEFAULT_THEME)
+        return SetupWindow(self.ui.root, palette=pal, on_log=self._log)
+
+    def _first_run_setup(self):
+        """Corre en el hilo de preload. Muestra la ventana solo si hay algo
+        que descargar o preguntar."""
+        self._log(f"[cuda] directorios de DLLs registrados: "
+                  f"{config.CUDA_DLL_DIRS or 'ninguno'} · usable={config.cuda_dlls_present()}")
+        win = self._new_setup_window()
+        try:
+            self._offer_gpu_pack(win, interactive=not bool(self.settings.get("gpu_pack_declined")))
+            self._autotune_perf_profile()
+            self._refresh_gpu_pack_button()
+            self._ensure_model_downloaded(win, self.settings.get("model"))
+        finally:
+            win.close()
+
+    def _gpu_pack_needed(self) -> dict | None:
+        """GPU NVIDIA detectada y sin DLLs CUDA cargables → info de la GPU."""
+        if config.cuda_dlls_present():
+            return None
+        gpu = setup_assets.detect_nvidia_gpu()
+        if not gpu:
+            return None
+        if setup_assets.gpu_pack_installed():
+            # Instalado (p.ej. por otra sesión) pero no registrado aún.
+            if config.register_cuda_dir(config.GPU_PACK_DIR) and config.cuda_dlls_present():
+                self.transcriber.reset_cuda_failed()
+                self._log(f"[gpu-pack] paquete NVIDIA cargado desde {config.GPU_PACK_DIR}")
+                return None
+        return gpu
+
+    def _offer_gpu_pack(self, win: SetupWindow, interactive: bool):
+        gpu = self._gpu_pack_needed()
+        if not gpu:
+            return
+        vram = gpu.get("vram_mb") or 0
+        vram_txt = f", {vram / 1024:.0f} GB" if vram else ""
+        self._log(f"[gpu-pack] GPU NVIDIA detectada ({gpu['name']}{vram_txt}) sin paquete CUDA")
+        if not interactive:
+            self._log("[gpu-pack] el usuario lo pospuso antes; botón disponible en la pestaña Transcribe")
+            return
+        ok = win.ask(
+            "Acelerar Wisip con tu GPU NVIDIA",
+            f"Se detectó {gpu['name']}{vram_txt}. Con la aceleración GPU la "
+            f"transcripción es entre 10 y 20 veces más rápida.\n\n"
+            f"Descarga única de ~{config.GPU_PACK_DOWNLOAD_MB / 1000:.1f} GB "
+            f"(se guarda en tu equipo). Sin ella Wisip funciona igual, en CPU.",
+            yes="Descargar", no="Ahora no",
+        )
+        if not ok:
+            self.settings.set("gpu_pack_declined", True)
+            self._log("[gpu-pack] pospuesto por el usuario")
+            return
+        self._download_gpu_pack(win)
+
+    def _download_gpu_pack(self, win: SetupWindow) -> bool:
+        win.show(
+            "Descargando la aceleración NVIDIA",
+            "Una sola vez. Puedes seguir usando el PC; Wisip se activará al terminar.",
+            cancellable=True,
+        )
+        try:
+            setup_assets.install_gpu_pack(
+                progress=win.set_progress, cancel=win.cancel_event, on_log=self._log,
+            )
+        except setup_assets.DownloadCancelled:
+            self._log("[gpu-pack] descarga cancelada por el usuario")
+            self.settings.set("gpu_pack_declined", True)
+            win.info("Descarga cancelada",
+                     "Wisip funcionará en CPU. Puedes descargar la aceleración "
+                     "cuando quieras desde el botón de la pestaña Transcribe.")
+            return False
+        except setup_assets.DownloadError as e:
+            self._log(f"[gpu-pack] error: {e}")
+            error_log.log_error("descarga del paquete NVIDIA", e)
+            win.info("No se pudo descargar la aceleración",
+                     f"{e}\n\nWisip funcionará en CPU. Revisa tu conexión y "
+                     "reintenta desde la pestaña Transcribe.")
+            return False
+        n = config.register_cuda_dir(config.GPU_PACK_DIR)
+        self.transcriber.reset_cuda_failed()
+        self.settings.set("gpu_pack_declined", False)
+        self._log(f"[gpu-pack] {n} directorios de DLLs registrados · CUDA usable: "
+                  f"{config.cuda_dlls_present()}")
+        return True
+
+    def _refresh_gpu_pack_button(self):
+        """Muestra el botón 'Descargar aceleración NVIDIA' solo si hace falta."""
+        try:
+            gpu = self._gpu_pack_needed()
+        except Exception:
+            gpu = None
+        if gpu:
+            self.ui.set_gpu_pack_button(
+                f"⚡ Descargar aceleración NVIDIA (~{config.GPU_PACK_DOWNLOAD_MB / 1000:.1f} GB)"
+            )
+        else:
+            self.ui.set_gpu_pack_button(None)
+
+    def _on_gpu_pack_install(self):
+        """Botón de la UI. Descarga en un hilo y recarga el modelo en GPU."""
+        def worker():
+            if not self._setup_busy.acquire(blocking=False):
+                self._log("[gpu-pack] ya hay una preparación en curso")
+                return
+            try:
+                win = self._new_setup_window()
+                try:
+                    ok = self._download_gpu_pack(win)
+                finally:
+                    win.close()
+                self._refresh_gpu_pack_button()
+                if ok:
+                    # Perfil de rendimiento: si sigue en CPU secuencial, sube.
+                    if self.settings.get("performance_profile") == config.PERF_PROFILE_QUALITY:
+                        self.settings.set("performance_profile", config.PERF_PROFILE_FAST_SAFE)
+                        self.ui.set_perf_profile(config.PERF_PROFILE_FAST_SAFE)
+                    self._reload_model(self.settings.get("model"))
+            finally:
+                self._setup_busy.release()
+        threading.Thread(target=worker, daemon=True, name="gpu-pack").start()
+
+    def _ensure_model_downloaded(self, win: SetupWindow, model_name: str) -> bool:
+        """Descarga el modelo con progreso si no está en caché. Devuelve True
+        si al final está disponible."""
+        if setup_assets.model_is_cached(model_name):
+            return True
+        mb = setup_assets.model_download_mb(model_name)
+        size_txt = f"~{mb / 1000:.1f} GB" if mb >= 1000 else f"~{mb} MB"
+        self._log(f"[setup] modelo '{model_name}' no está en caché: descargando ({size_txt})")
+        self._set_state("loading")
+        win.show(
+            f"Descargando el modelo de voz ({model_name})",
+            f"Primera vez con este modelo: {size_txt}. Se guarda en tu equipo y "
+            "no se vuelve a descargar.",
+            cancellable=True,
+        )
+        try:
+            setup_assets.download_model(model_name, progress=win.set_progress,
+                                        cancel=win.cancel_event)
+        except setup_assets.DownloadCancelled:
+            self._log("[setup] descarga del modelo cancelada")
+            self._model_download_failed = True
+            win.info("Descarga cancelada",
+                     "Sin el modelo de voz Wisip no puede transcribir. Vuelve a "
+                     "abrir Wisip para reintentar la descarga.")
+            return False
+        except setup_assets.DownloadError as e:
+            self._log(f"[setup] error descargando el modelo: {e}")
+            error_log.log_error(f"descarga del modelo '{model_name}'", e)
+            self._model_download_failed = True
+            win.info("No se pudo descargar el modelo",
+                     f"{e}\n\nRevisa tu conexión a internet y vuelve a abrir Wisip.")
+            return False
+        self._log(f"[setup] modelo '{model_name}' descargado")
+        return True
 
     def _on_model_change(self, name: str):
         self.settings.set("model", name)
@@ -368,6 +545,19 @@ class Controller:
     def _reload_model(self, name: str, compute_type: str | None = None):
         # compute_type ya no se usa aquí: lo decide el perfil de rendimiento
         # (_perf_params). Se mantiene el parámetro por compatibilidad de llamadas.
+        # Modelo nuevo no cacheado → descarga con progreso antes de cargar.
+        try:
+            if not setup_assets.model_is_cached(name):
+                win = self._new_setup_window()
+                try:
+                    self._model_download_failed = False
+                    if not self._ensure_model_downloaded(win, name):
+                        self._set_state("error")
+                        return
+                finally:
+                    win.close()
+        except Exception as e:
+            self._log(f"[setup] descarga previa del modelo falló: {e}")
         self._load_model_now(name, prev_state=self._state)
 
     # ---------------- benchmark / tiempo transcurrido ----------------

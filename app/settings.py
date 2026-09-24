@@ -44,6 +44,9 @@ DEFAULTS = {
     # modelo 'Preciso GPU' (large-v3-turbo) a quien tenga GPU. Solo una vez.
     "perf_autotuned": False,
     "model_autotuned": False,
+    # El usuario dijo "ahora no" a la descarga del paquete NVIDIA (2.7.0+).
+    # No se vuelve a preguntar al arrancar; queda el botón en la UI.
+    "gpu_pack_declined": False,
     "batched": config.DEFAULT_BATCHED,
     "batch_size": config.DEFAULT_BATCH_SIZE,
     # Transcripción incremental (solo diseño; desactivada)

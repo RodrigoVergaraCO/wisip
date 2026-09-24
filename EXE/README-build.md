@@ -83,7 +83,27 @@ Abre PowerShell **nuevo** y ya puedes correr:
 iscc EXE\installer.iss
 ```
 
-Resultado de cualquiera de las 3 opciones: `EXE\installer\Wisip-Setup-1.0.0.exe`.
+Resultado de cualquiera de las 3 opciones: `EXE\installer\Wisip-Setup-{versión}.exe`
+(~70 MB).
+
+## Build liviano y paquete NVIDIA (2.7.0+)
+
+El build **no incluye las DLLs CUDA** (1,9 GB). Cuando la app detecta una GPU
+NVIDIA ofrece descargar el "paquete de aceleración" (~1,2 GB) desde los wheels
+oficiales de NVIDIA en PyPI a `%LOCALAPPDATA%\Wisip\cuda` (ver
+`app/setup_assets.py`). El modelo Whisper también se descarga en el primer
+arranque, con progreso.
+
+Si por alguna razón quieres el build "todo incluido" de 2,2 GB (sin descargas
+en el equipo destino), compila con la variable `WISIP_BUNDLE_CUDA=1` y etiqueta
+el instalador:
+
+```powershell
+$env:WISIP_BUNDLE_CUDA = "1"; EXEuild.bat
+& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" /DVariant=GPU-full EXE\installer.iss
+```
+
+Requiere que el venv tenga los paquetes `nvidia-*-cu12` instalados.
 
 Distribuye **solo** ese archivo. Quien lo ejecute:
 
@@ -107,7 +127,7 @@ EXE/
     ├── build/         # caché de PyInstaller (puedes borrarla)
     ├── Wisip/         # app empacada (Wisip.exe + _internal/)
     └── installer/
-        └── Wisip-Setup-1.0.0.exe
+        └── Wisip-Setup-{versión}.exe
 ```
 
 ## Actualizar versión

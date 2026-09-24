@@ -3,6 +3,28 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.7.0 — 2026-09-24
+
+- **Un solo instalador liviano (~70 MB)** en vez de CPU (66 MB) y GPU (970 MB).
+  Las DLLs CUDA (1,9 GB) ya no van dentro: si hay GPU NVIDIA, la app ofrece
+  descargar el paquete de aceleración (~1,2 GB) una sola vez a
+  `%LOCALAPPDATA%\Wisip\cuda`. Se extraen solo las DLLs necesarias de los
+  wheels oficiales de NVIDIA en PyPI leyendo el zip por rangos HTTP, con
+  verificación CRC32/sha256; se omiten `cudnn_adv` y `nvblas` (verificado que
+  faster-whisper no las usa).
+- **Descarga del modelo con progreso** (porcentaje, MB, velocidad, tiempo
+  restante, cancelar) en el primer arranque y al cambiar de modelo. Antes
+  parecía colgada durante la descarga de 1,6 GB.
+- Botón "Descargar aceleración NVIDIA" en la pestaña Transcribe cuando hay GPU
+  y falta el paquete. Ajuste `gpu_pack_declined` para no volver a preguntar.
+- El autotune a GPU y la selección de dispositivo ya no confían solo en el
+  driver: exigen que las DLLs CUDA existan (antes, en un build sin CUDA con
+  driver NVIDIA, intentaba GPU en cada arranque y caía a CPU con aviso).
+- Nuevo validador `scripts/check_setup_assets.py` (servidor HTTP local con
+  rangos, zip64, cancelación, fallback sin rangos, sha256).
+- `Wisip.spec` solo empaqueta CUDA con `WISIP_BUNDLE_CUDA=1`; eliminados
+  `build_cpu.bat` y `build_installers.bat`.
+
 ## 2.6.0 — 2026-09-23
 
 - Unión de tramos incrementales: se elimina el punto de cierre de tramo cuando

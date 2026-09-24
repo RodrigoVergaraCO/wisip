@@ -321,12 +321,20 @@ class Transcriber:
             return "cpu"
         if d == "cpu":
             return "cpu"
+        # cuda_available() responde True con solo el driver NVIDIA; sin las
+        # DLLs de cuBLAS/cuDNN (build liviano sin el paquete descargado) la
+        # carga en GPU fallaría siempre → ni se intenta.
+        usable = cuda_available() and config.cuda_dlls_present()
         if d == "cuda":
-            return "cuda" if cuda_available() else "cpu"
+            return "cuda" if usable else "cpu"
         # auto
-        if enable_gpu and cuda_available():
+        if enable_gpu and usable:
             return "cuda"
         return "cpu"
+
+    def reset_cuda_failed(self):
+        """Permite reintentar GPU (p.ej. tras descargar el paquete NVIDIA)."""
+        self._cuda_failed = False
 
     def resolve_backend(self, device: str | None, compute_type: str | None,
                         enable_gpu: bool = True) -> tuple[str, str]:

@@ -13,6 +13,86 @@ os.environ.setdefault("HF_HUB_DISABLE_SYMLINKS_WARNING", "1")
 # vivos esos handles durante toda la vida del proceso, o cuBLAS/cuDNN "desaparecen"
 # justo cuando faster-whisper intenta cargarlos en GPU.
 _CUDA_DLL_COOKIES: list = []
+# Directorios <lib>/bin registrados (para saber si las DLLs CUDA existen de
+# verdad: `get_cuda_device_count()` responde con solo el driver instalado).
+CUDA_DLL_DIRS: list = []
+
+# ─── Paquete de aceleración NVIDIA descargable ──────────────────────────
+# Desde la 2.7.0 el instalador NO lleva las DLLs CUDA (1,9 GB). Si hay una
+# GPU NVIDIA, la app ofrece descargarlas una vez a esta carpeta (misma
+# estructura que los wheels de PyPI: <lib>/bin/*.dll) y las carga desde ahí.
+GPU_PACK_DIR = Path(
+    os.environ.get("LOCALAPPDATA") or os.environ.get("APPDATA") or str(Path.home())
+) / "Wisip" / "cuda"
+GPU_PACK_MANIFEST = GPU_PACK_DIR / "pack.json"
+# Cambiar si se actualiza ctranslate2 a otra serie de CUDA/cuDNN: invalida el
+# paquete instalado y se vuelve a ofrecer la descarga.
+GPU_PACK_VERSION = "cu12.9-cudnn9.23-ct2-4.8"
+# Wheels oficiales de NVIDIA en PyPI (mismas versiones que el venv de
+# desarrollo, probadas con ctranslate2 4.8.0). Solo se extraen los .dll de
+# <lib>/bin; el sha256 es el publicado por PyPI y se verifica al descargar
+# el archivo completo (modo sin rangos) — en modo por rangos se verifica el
+# CRC32 de cada DLL contra la tabla central del zip.
+NVIDIA_WHEELS = (
+    {"name": "nvidia-cuda-runtime-cu12", "version": "12.9.79", "lib": "cuda_runtime",
+     "sha256": "8e018af8fa02363876860388bd10ccb89eb9ab8fb0aa749aaf58430a9f7c4891"},
+    {"name": "nvidia-cublas-cu12", "version": "12.9.2.10", "lib": "cublas",
+     "sha256": "623f43027d40d44ceadf0043f002bd25cf353e8f13ce90b9a87057019f560661"},
+    {"name": "nvidia-cudnn-cu12", "version": "9.23.2.1", "lib": "cudnn",
+     "sha256": "549d6eb120cdd89429997243cd2cad1e864aac3a2f887a93f17836ce72d83873"},
+    {"name": "nvidia-cuda-nvrtc-cu12", "version": "12.9.86", "lib": "cuda_nvrtc",
+     "sha256": "72972ebdcf504d69462d3bcd67e7b81edd25d0fb85a2c46d3ea3517666636349"},
+)
+# DLLs que faster-whisper/CTranslate2 NO usan (verificado cargando el modelo
+# en GPU sin ellas, 2026-09-23). Se omiten para ahorrar descarga y disco.
+# Se conservan nvrtc y los "engines" de cuDNN: son el compilador/kernels de
+# respaldo para GPUs donde no hay kernel precompilado.
+GPU_PACK_EXCLUDE_DLLS = ("cudnn_adv64", "nvblas")
+# Tamaño aproximado de la descarga (para el mensaje al usuario).
+GPU_PACK_DOWNLOAD_MB = 1200
+# Tamaño aproximado de cada modelo (descarga inicial).
+MODEL_DOWNLOAD_MB = {
+    "tiny": 75, "base": 145, "small": 480, "medium": 1500,
+    "large-v3-turbo": 1600, "large-v3": 3100,
+}
+
+
+def register_cuda_dir(root) -> int:
+    """Añade <root>/*/bin al buscador de DLLs (en caliente, p.ej. tras
+    descargar el paquete NVIDIA). Devuelve cuántos directorios añadió."""
+    n = 0
+    if sys.platform != "win32":
+        return 0
+    for bindir in glob.glob(os.path.join(str(root), "*", "bin")):
+        if not os.path.isdir(bindir):
+            continue
+        os.environ["PATH"] = bindir + os.pathsep + os.environ.get("PATH", "")
+        try:
+            _CUDA_DLL_COOKIES.append(os.add_dll_directory(bindir))
+            CUDA_DLL_DIRS.append(bindir)
+            n += 1
+        except Exception:
+            pass
+    return n
+
+
+_CUDA_REQUIRED_DLLS = ("cublas64_12.dll", "cudnn64_9.dll", "cudart64_12.dll")
+
+
+def cuda_dlls_present() -> bool:
+    """True si las DLLs CUDA que necesita CTranslate2 están en alguno de los
+    directorios registrados. OJO: `ctranslate2.get_cuda_device_count()` da 1
+    con solo el driver NVIDIA instalado, aunque falten cuBLAS/cuDNN (entonces
+    la carga del modelo en GPU falla y se cae a CPU)."""
+    found = set()
+    for d in CUDA_DLL_DIRS:
+        try:
+            for f in os.listdir(d):
+                if f.lower() in _CUDA_REQUIRED_DLLS:
+                    found.add(f.lower())
+        except Exception:
+            continue
+    return all(x in found for x in _CUDA_REQUIRED_DLLS)
 
 
 def _setup_cuda_dll_path() -> bool:
@@ -41,6 +121,9 @@ def _setup_cuda_dll_path() -> bool:
             if meipass:
                 candidates.append(os.path.join(meipass, "nvidia"))
             candidates.append(os.path.join(os.path.dirname(sys.executable), "nvidia"))
+        # Paquete NVIDIA descargado desde la app (2.7.0+). Va al final: si el
+        # build o el venv ya traen DLLs, esas mandan.
+        candidates.append(str(GPU_PACK_DIR))
         for nv in candidates:
             for bindir in glob.glob(os.path.join(nv, "*", "bin")):
                 if not os.path.isdir(bindir):
@@ -50,6 +133,7 @@ def _setup_cuda_dll_path() -> bool:
                     # Guardamos el cookie para que el directorio NO se quite cuando
                     # el GC corra (esa era la causa de 'cublas64_12.dll not found').
                     _CUDA_DLL_COOKIES.append(os.add_dll_directory(bindir))
+                    CUDA_DLL_DIRS.append(bindir)
                 except Exception:
                     pass
                 found = True

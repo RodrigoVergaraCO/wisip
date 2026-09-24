@@ -110,8 +110,9 @@ algo entiende que en una frase sobre proxies "prótesis" no encaja.
 
 ## Fase 6 — Camino a mercado (en paralelo, sin orden fijo)
 
+- ~~Instalador liviano: un solo `.exe` de ~70 MB, paquete NVIDIA y modelo
+  descargados desde la app con progreso.~~ **Hecho en 2.7.0 (2026-09-24).**
 - Selector de micrófono en la UI (el mute por hardware sigue pasando).
-- Progreso visible de descarga del modelo (splash con porcentaje).
 - Releases en GitHub con los instaladores CPU y GPU (hoy solo locales).
 - Firma de código (SmartScreen), auto-update, claves de licencia
   (Lemon Squeezy / Gumroad).

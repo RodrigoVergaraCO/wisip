@@ -84,17 +84,20 @@ izquierda del <kbd>1</kbd> en teclado ES-LA); se cambia desde la app.
 > venv para encontrar las librerías CUDA. `WISIP_NO_VENV_REEXEC=1` desactiva
 > ese guard.
 
-## Instaladores
+## Instalador
 
-`EXE/` contiene el pipeline de empaquetado completo (PyInstaller `--onedir
---windowed` + Inno Setup):
+Un solo instalador para todos, de unos 70 MB. Lo pesado se descarga en el
+primer arranque, con ventana de progreso, y una sola vez:
 
-| Variante | Tamaño | Notas |
+| Descarga | Tamaño | Cuándo |
 |---|---|---|
-| `Wisip-Setup-x.y.z-CPU.exe` | ~66 MB | Universal, solo CPU |
-| `Wisip-Setup-x.y.z-GPU.exe` | ~970 MB | Incluye las DLL de CUDA 12 para NVIDIA |
+| Modelo Whisper | 480 MB (`small`, CPU) o 1,6 GB (`large-v3-turbo`, GPU) | Primer arranque |
+| Paquete de aceleración NVIDIA | ~1,2 GB (cuBLAS / cuDNN / cudart / nvrtc, sacados de los wheels oficiales de NVIDIA en PyPI por rangos HTTP, con verificación de checksum) | Se ofrece al detectar GPU NVIDIA; se puede posponer e instalar después desde la app |
 
-Ver [`EXE/README-build.md`](EXE/README-build.md). Todavía no se publican como
+El paquete vive en `%LOCALAPPDATA%\Wisip\cuda` y se carga al arrancar. Las
+GPU AMD e Intel van por CPU por ahora (ver roadmap). `EXE/` contiene el
+pipeline de empaquetado (PyInstaller `--onedir --windowed` + Inno Setup); ver
+[`EXE/README-build.md`](EXE/README-build.md). Todavía no se publican como
 Releases de GitHub.
 
 ## Ciclo de calidad
@@ -108,7 +111,7 @@ dictar   →  logs/dictados-YYYY-MM.jsonl (+ WAV si es sospechoso)
 
 Cada guarda del código cita el dictado real que la motivó. Los validadores
 corren sin cargar el modelo: `check_replacements`, `check_normalizer`,
-`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`.
+`check_join_chunks`, `check_tail_guards`, `check_dictation_log`, `check_vocab`, `check_setup_assets`.
 
 ## Requisitos
 
