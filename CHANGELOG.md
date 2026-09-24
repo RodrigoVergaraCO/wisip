@@ -3,6 +3,10 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.10.1 — 2026-09-24
+
+- Defaults de fábrica genéricos (prompt v10, hotwords v3; fuera el vocabulario del desarrollador) y enlace de compra real de Lemon Squeezy en la pestaña Licencia. Flujo de licencia verificado contra la API real: activar, límite de un equipo, validar, desactivar.
+
 ## 2.10.0 — 2026-09-24
 
 - **Interfaz simplificada**: la pestaña Transcribe se divide en **Inicio**

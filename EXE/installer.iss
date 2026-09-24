@@ -7,7 +7,7 @@
 ; Resultado: EXE\installer\Wisip-Setup-1.0.0.exe
 
 #define MyAppName "Wisip"
-#define MyAppVersion "2.10.0"
+#define MyAppVersion "2.10.1"
 #define MyAppPublisher "Wisip"
 #define MyAppExeName "Wisip.exe"
 ; Desde la 2.7.0 hay UN solo instalador liviano (~70 MB): las DLLs CUDA se
