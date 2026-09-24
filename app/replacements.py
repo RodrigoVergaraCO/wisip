@@ -633,6 +633,16 @@ _POST_DOT_TLD = re.compile(
 )
 # "https : / /" o "http : //" → "https://" (el ':' con espacios en URLs).
 _POST_SCHEME = re.compile(r"\b(https?)\s*:\s*/\s*/", re.IGNORECASE)
+# "host.tld.ruta" → "host.tld/ruta": Whisper a veces escribe la URL él mismo y
+# convierte "slash" en punto ("wisip punto ai slash dashboard" salió como
+# "wisip.ai.dashboard" en el texto crudo, lectura real 2026-09-23). Solo si el
+# segmento tras el TLD tiene ≥4 letras en minúscula y NO es otro TLD
+# (amazon.com.mx, google.com.ar se respetan).
+_POST_TLD_DOT_PATH = re.compile(
+    r"\b([a-z0-9-]+(?:\.[a-z0-9-]+)*\.(?:" +
+    "|".join(sorted(KNOWN_TLDS, key=len, reverse=True)) +
+    r"))\.([a-z][a-z0-9-]{3,})\b"
+)
 
 
 def _normalize_post(text: str, log_lines: list) -> str:
@@ -675,7 +685,18 @@ def _normalize_post(text: str, log_lines: list) -> str:
             out,
         )
 
-    # 5) arroba fusionado con host
+    # 5) "host.tld.ruta" → "host.tld/ruta" (slash dictado que llegó como punto).
+    def _tld_path_sub(m):
+        seg = m.group(2).lower()
+        if seg in KNOWN_TLDS:
+            return m.group(0)
+        result = f"{m.group(1)}/{m.group(2)}"
+        log_lines.append(f"ruta tras TLD: {m.group(0)!r} → {result!r}")
+        return result
+
+    out = _POST_TLD_DOT_PATH.sub(_tld_path_sub, out)
+
+    # 6) arroba fusionado con host
     def _arroba_sub(m):
         rest = m.group(1)
         result = "@" + rest

@@ -49,6 +49,11 @@ CASES = [
     ("La URL es api punto wisip punto co slash v1 slash users.", "api.wisip.co/v1/users", True),
     ("También puedo dictar api.wisip.cov-v1-users.", "api.wisip.co/v1/users", True),
     ("Una URL como wisip.ai-dashboard.", "wisip.ai/dashboard", True),
+    # ── "slash" que Whisper convirtió en punto (lectura real 2026-09-23) ──
+    ("Puedes entrar a wisip.ai.dashboard para verlo.", "wisip.ai/dashboard", True),
+    ("Ve a api.wisip.co.users ahora.", "api.wisip.co/users", True),
+    ("La tienda es amazon.com.mx y envía rápido.", "amazon.com/mx", False),
+    ("Termina el archivo final.com. Luego seguimos.", "final.com/", False),
     # ── NO deben romperse (texto normal con guiones/puntos) ──────────
     ("Esto es una frase normal con guion medio y no debería cambiarse.", "@", False),
     ("Tengo una arquitectura cliente-servidor con micro-servicios.", "@", False),

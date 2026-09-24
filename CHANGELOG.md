@@ -3,6 +3,10 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.9.2 — 2026-09-24
+
+- URLs: si Whisper escribe la ruta con punto ("wisip.ai.dashboard" por "wisip punto ai slash dashboard", lectura real 2026-09-23), el normalizador la corrige a "wisip.ai/dashboard" cuando el segmento tras el TLD no es otro TLD (amazon.com.mx se respeta). 4 casos nuevos en check_normalizer.
+
 ## 2.9.1 — 2026-09-24
 
 - Unión de tramos, a partir de una lectura de prueba real de 90 s (14 tramos):
