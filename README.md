@@ -150,6 +150,7 @@ app/setup_window.py     progress window (model / GPU pack) with cancel
 app/onboarding.py       first-run wizard: privacy, microphone (live level), hotkey, language, GPU
 app/audio_devices.py    microphone enumeration (WASAPI, deduplicated) and name-based resolution
 app/license.py          30-day trial + lifetime key per machine (Lemon Squeezy License API)
+tests/shots.py          real product screenshots composed for the store and website (site/media)
 app/ui.py, themes.py    CustomTkinter window, palettes, Vocabulary tab
 app/floating_bar.py     always-on-top status pill with live mic bars
 app/hotkeys.py, typer.py, tray.py, autostart.py, single_instance.py, error_log.py

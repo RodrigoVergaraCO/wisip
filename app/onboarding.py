@@ -225,7 +225,7 @@ class OnboardingWizard:
         self.level_hint = self._text(f, "Escuchando…", muted=True, size=11)
         self._text(f, "Si la barra no se mueve: revisa el botón de silencio del micrófono, "
                       "el volumen de entrada en Windows (Sonido → Entrada) o elige otro "
-                      "dispositivo. Puedes cambiarlo luego en la pestaña Transcribe.",
+                      "dispositivo. Puedes cambiarlo luego en la pestaña Inicio.",
                    muted=True, size=11)
 
     def _page_hotkey(self, f):
@@ -297,7 +297,7 @@ class OnboardingWizard:
                       "una sola vez y quedará listo. Luego prueba: mantén la tecla, di una "
                       "frase y suéltala.", muted=True, size=11)
         self._text(f, "Todo esto se puede cambiar cuando quieras desde la ventana de Wisip "
-                      "(pestaña Transcribe) o el icono de la bandeja.", muted=True, size=11)
+                      "(pestañas Inicio y Ajustes) o el icono de la bandeja.", muted=True, size=11)
 
     # ── navegación ──────────────────────────────────────────────────────
     def _show_page(self, i: int):

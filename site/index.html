@@ -72,10 +72,13 @@
   .faq summary::before { content: "+"; color: var(--accent); display: inline-block; width: 22px; }
   .faq details[open] summary::before { content: "–"; }
   .faq p { color: var(--text-2); margin: 10px 0 0 22px; }
+  .shots { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .shots img { width: 100%; height: auto; border-radius: 12px; border: 1px solid var(--border); display: block; }
+  .shots a:hover img { border-color: var(--accent); }
   footer { border-top: 1px solid var(--border); padding: 30px 0 50px; color: var(--muted); font-size: 14px; }
   footer a { color: var(--text-2); }
   @media (max-width: 800px) {
-    .steps, .grid, .price { grid-template-columns: 1fr; }
+    .steps, .grid, .price, .shots { grid-template-columns: 1fr; }
     .nav nav a:not(:last-child) { display: none; }
     .btn.ghost { margin: 12px 0 0; }
   }
@@ -111,6 +114,18 @@
       <div class="out" style="color:var(--text)">Hola Andrea, te confirmo la reunión del jueves. Puedes entrar a wisip.ai/dashboard o escribirme a soporte@gmail.com.</div>
     </div>
   </div>
+
+  <section id="capturas">
+    <div class="wrap">
+      <h2>Así se ve</h2>
+      <p class="sub">Capturas reales de la versión actual.</p>
+      <div class="shots">
+        <a href="media/01-inicio.png"><img src="media/01-inicio.png" alt="Pestaña Inicio de Wisip" loading="lazy"></a>
+        <a href="media/02-asistente.png"><img src="media/02-asistente.png" alt="Asistente de primer arranque" loading="lazy"></a>
+        <a href="media/03-vocabulario.png"><img src="media/03-vocabulario.png" alt="Pestaña Vocabulario" loading="lazy"></a>
+      </div>
+    </div>
+  </section>
 
   <section id="como">
     <div class="wrap">

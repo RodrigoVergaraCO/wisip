@@ -3,6 +3,18 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.10.0 — 2026-09-24
+
+- **Interfaz simplificada**: la pestaña Transcribe se divide en **Inicio**
+  (tecla, cómo funciona, micrófono, idioma y modo mixto, botón de grabar,
+  última transcripción) y **Ajustes** (perfil, modelo, rendimiento, modo de
+  pegado, tema, interruptores y avanzado). Feedback del usuario: "el panel
+  tiene muchos botones".
+- Capturas reales de producto para la tienda y la web (`tests/shots.py` →
+  `site/media/`), y sección de capturas en la página.
+- Prueba de humo `tests/smoke_ui_tabs.py` (pestañas, rebuild de tema,
+  setters thread-safe).
+
 ## 2.9.2 — 2026-09-24
 
 - URLs: si Whisper escribe la ruta con punto ("wisip.ai.dashboard" por "wisip punto ai slash dashboard", lectura real 2026-09-23), el normalizador la corrige a "wisip.ai/dashboard" cuando el segmento tras el TLD no es otro TLD (amazon.com.mx se respeta). 4 casos nuevos en check_normalizer.

@@ -565,7 +565,7 @@ class Controller:
             self._download_gpu_pack(win)
             return
         if not interactive:
-            self._log("[gpu-pack] el usuario lo pospuso antes; botón disponible en la pestaña Transcribe")
+            self._log("[gpu-pack] el usuario lo pospuso antes; botón disponible en la pestaña Ajustes")
             return
         ok = win.ask(
             "Acelerar Wisip con tu GPU NVIDIA",
@@ -596,14 +596,14 @@ class Controller:
             self.settings.set("gpu_pack_declined", True)
             win.info("Descarga cancelada",
                      "Wisip funcionará en CPU. Puedes descargar la aceleración "
-                     "cuando quieras desde el botón de la pestaña Transcribe.")
+                     "cuando quieras desde el botón de la pestaña Ajustes.")
             return False
         except setup_assets.DownloadError as e:
             self._log(f"[gpu-pack] error: {e}")
             error_log.log_error("descarga del paquete NVIDIA", e)
             win.info("No se pudo descargar la aceleración",
                      f"{e}\n\nWisip funcionará en CPU. Revisa tu conexión y "
-                     "reintenta desde la pestaña Transcribe.")
+                     "reintenta desde la pestaña Ajustes.")
             return False
         n = config.register_cuda_dir(config.GPU_PACK_DIR)
         self.transcriber.reset_cuda_failed()

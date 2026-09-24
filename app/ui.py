@@ -466,18 +466,23 @@ class AppUI:
             corner_radius=6,
         )
         self.tabs.pack(fill="both", expand=True, padx=12, pady=12)
-        self.tabs.add("Transcribe")
+        self.tabs.add("Inicio")
+        self.tabs.add("Ajustes")
         self.tabs.add("Vocabulario")
         self.tabs.add("Historial")
         self.tabs.add("Licencia")
 
-        self._build_transcribe_tab(self.tabs.tab("Transcribe"))
+        self._build_home_tab(self.tabs.tab("Inicio"))
+        self._build_settings_tab(self.tabs.tab("Ajustes"))
         self._build_vocab_tab(self.tabs.tab("Vocabulario"))
         self._build_history_tab(self.tabs.tab("Historial"))
         self._build_license_tab(self.tabs.tab("Licencia"))
 
-    # ---------- Tab: Transcribe ----------
-    def _build_transcribe_tab(self, parent):
+    # ---------- Tab: Inicio ----------
+    # Lo mínimo para dictar: tecla, cómo funciona, micrófono e idioma, botón y
+    # última transcripción. Todo lo demás vive en Ajustes (feedback del
+    # usuario 2026-09-23: "el panel tiene muchos botones").
+    def _build_home_tab(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color=BG_BASE)
         scroll.pack(fill="both", expand=True)
 
@@ -535,15 +540,30 @@ class AppUI:
             font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left",
         ).pack(anchor="w", padx=12, pady=(0, 8))
 
-        # Grid de configuración.
+        # Micrófono + idioma: lo único de configuración que se toca a diario.
         cfg = ctk.CTkFrame(scroll, fg_color="transparent")
         cfg.pack(fill="x", padx=4, pady=(0, 12))
         cfg.grid_columnconfigure(0, weight=1, uniform="cfg")
         cfg.grid_columnconfigure(1, weight=1, uniform="cfg")
 
-        # Idioma + Modo.
+        try:
+            mic_names = [d["name"] for d in audio_devices.list_input_devices()]
+        except Exception:
+            mic_names = []
+        mic_values = [audio_devices.DEFAULT_LABEL] + mic_names
+        mic_initial = audio_devices.device_label(self._initial.get("input_device_name", ""))
+        if mic_initial not in mic_values:
+            mic_values.append(mic_initial + "  (no conectado)")
+            mic_initial = mic_initial + "  (no conectado)"
         self._labeled_dropdown(
-            cfg, "IDIOMA", row=0, col=0,
+            cfg, "MICRÓFONO", row=0, col=0, colspan=2,
+            values=mic_values,
+            initial=mic_initial,
+            command=self._input_device_changed,
+            attr_name="mic_menu",
+        )
+        self._labeled_dropdown(
+            cfg, "IDIOMA", row=1, col=0,
             values=config.LANGUAGE_LABELS,
             initial=config.LANGUAGE_CODE_TO_LABEL.get(
                 self._resolved_language_code(), config.LANGUAGE_LABEL_ES
@@ -551,18 +571,74 @@ class AppUI:
             command=self._language_changed,
             attr_name="language_menu",
         )
-        self._labeled_dropdown(
-            cfg, "MODO", row=0, col=1,
-            values=config.PASTE_MODES,
-            initial=self._initial.get("paste_mode", config.PASTE_MODE_PASTE),
-            command=self._paste_mode_changed,
-            attr_name="paste_mode_menu",
+        # Idioma mixto (ES + términos EN), al lado del idioma.
+        ml_card = ctk.CTkFrame(
+            cfg, fg_color=BG_SURFACE_LOW,
+            border_color=BORDER, border_width=1, corner_radius=4,
         )
+        ml_card.grid(row=1, column=1, sticky="nsew", padx=4, pady=(22, 4))
+        ctk.CTkLabel(
+            ml_card, text="MIXTO ES + EN",
+            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
+        ).pack(side="left", padx=12, pady=8)
+        self.mixed_lang_var = tk.BooleanVar(
+            value=bool(self._initial.get("mixed_language_mode", True))
+        )
+        self.mixed_lang_switch = ctk.CTkSwitch(
+            ml_card, text="", variable=self.mixed_lang_var,
+            command=self._mixed_lang_changed,
+            progress_color=PRIMARY_BTN, button_color="#ffffff",
+            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
+        )
+        self.mixed_lang_switch.pack(side="right", padx=12, pady=6)
+
+        # Botón principal.
+        self.toggle_btn = ctk.CTkButton(
+            scroll,
+            text=self._BTN_ICONS["Iniciar grabación"] + "Iniciar grabación",
+            command=self._toggle_clicked,
+            fg_color=PRIMARY_BTN, hover_color=PRIMARY_BTN_HOVER,
+            text_color=PRIMARY_BTN_TEXT,
+            font=self._fnt(17, bold=True),
+            corner_radius=6, height=64,
+        )
+        self.toggle_btn.pack(fill="x", padx=4, pady=(4, 12))
+
+        # Última transcripción.
+        ctk.CTkLabel(
+            scroll, text="ÚLTIMA TRANSCRIPCIÓN",
+            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
+        ).pack(anchor="w", padx=8, pady=(4, 4))
+
+        self.transcription_box = ctk.CTkTextbox(
+            scroll, height=120, wrap="word",
+            fg_color=BG_SURFACE_HIGH, text_color=TEXT,
+            border_color=PRIMARY_BTN, border_width=1,
+            font=self._fnt(13),
+        )
+        self.transcription_box.pack(fill="x", padx=4, pady=(0, 12))
+        self.transcription_box.configure(state="disabled")
+
+        self.backend_label = ctk.CTkLabel(
+            scroll, text="Backend: —",
+            font=self._fnt_mono(11), text_color=SECONDARY, anchor="w",
+        )
+        self.backend_label.pack(anchor="w", padx=8, pady=(0, 8))
+
+    # ---------- Tab: Ajustes ----------
+    def _build_settings_tab(self, parent):
+        scroll = ctk.CTkScrollableFrame(parent, fg_color=BG_BASE)
+        scroll.pack(fill="both", expand=True)
+
+        cfg = ctk.CTkFrame(scroll, fg_color="transparent")
+        cfg.pack(fill="x", padx=4, pady=(2, 12))
+        cfg.grid_columnconfigure(0, weight=1, uniform="cfg")
+        cfg.grid_columnconfigure(1, weight=1, uniform="cfg")
 
         # Perfil + descripción.
         profile_initial_key = self._resolved_profile_key()
         self._labeled_dropdown(
-            cfg, "PERFIL", row=1, col=0, colspan=2,
+            cfg, "PERFIL", row=0, col=0, colspan=2,
             values=[config.QUALITY_PROFILE_LABELS[k] for k in config.QUALITY_PROFILE_KEYS],
             initial=config.QUALITY_PROFILE_LABELS[profile_initial_key],
             command=self._profile_changed,
@@ -574,13 +650,13 @@ class AppUI:
             font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
         self.profile_desc_label.grid(
-            row=2, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6)
+            row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6)
         )
 
         # Modelo + hint.
         model_initial = self._initial.get("model", config.DEFAULT_MODEL)
         self._labeled_dropdown(
-            cfg, "MODELO", row=3, col=0, colspan=2,
+            cfg, "MODELO", row=2, col=0, colspan=2,
             values=config.AVAILABLE_MODELS,
             initial=model_initial,
             command=self._model_changed,
@@ -591,13 +667,13 @@ class AppUI:
             font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
         self.model_hint_label.grid(
-            row=4, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 0)
+            row=3, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 0)
         )
 
         # Perfil de RENDIMIENTO (device/compute/batching). Distinto del de calidad.
         perf_key = self._resolved_perf_key()
         self._labeled_dropdown(
-            cfg, "RENDIMIENTO", row=5, col=0, colspan=2,
+            cfg, "RENDIMIENTO", row=4, col=0, colspan=2,
             values=[config.PERF_PROFILE_LABELS[k] for k in config.PERF_PROFILE_KEYS],
             initial=config.PERF_PROFILE_LABELS[perf_key],
             command=self._perf_profile_changed,
@@ -608,14 +684,7 @@ class AppUI:
             font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
         self.perf_desc_label.grid(
-            row=6, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 0)
-        )
-        self.backend_label = ctk.CTkLabel(
-            cfg, text="Backend: —",
-            font=self._fnt_mono(11), text_color=SECONDARY, anchor="w",
-        )
-        self.backend_label.grid(
-            row=7, column=0, columnspan=2, sticky="ew", padx=4, pady=(0, 2)
+            row=5, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6)
         )
 
         # Botón de descarga del paquete NVIDIA: solo visible cuando hay GPU
@@ -627,36 +696,25 @@ class AppUI:
             command=self._gpu_pack_clicked,
         )
         self.gpu_pack_btn.grid(
-            row=8, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 6)
+            row=6, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 6)
         )
         if not self._gpu_pack_btn_text:
             self.gpu_pack_btn.grid_remove()
 
-        # Tema de color (sistema de paletas; se aplica en vivo y se guarda).
+        # Modo de pegado + tema.
         self._labeled_dropdown(
-            cfg, "TEMA", row=9, col=0, colspan=2,
+            cfg, "MODO", row=7, col=0,
+            values=config.PASTE_MODES,
+            initial=self._initial.get("paste_mode", config.PASTE_MODE_PASTE),
+            command=self._paste_mode_changed,
+            attr_name="paste_mode_menu",
+        )
+        self._labeled_dropdown(
+            cfg, "TEMA", row=7, col=1,
             values=[themes.THEME_LABELS[k] for k in themes.THEME_KEYS],
             initial=themes.THEME_LABELS.get(self._theme_key, ""),
             command=self._theme_changed,
             attr_name="theme_menu",
-        )
-
-        # Micrófono (por nombre; vacío = predeterminado del sistema).
-        try:
-            mic_names = [d["name"] for d in audio_devices.list_input_devices()]
-        except Exception:
-            mic_names = []
-        mic_values = [audio_devices.DEFAULT_LABEL] + mic_names
-        mic_initial = audio_devices.device_label(self._initial.get("input_device_name", ""))
-        if mic_initial not in mic_values:
-            mic_values.append(mic_initial + "  (no conectado)")
-            mic_initial = mic_initial + "  (no conectado)"
-        self._labeled_dropdown(
-            cfg, "MICRÓFONO", row=10, col=0, colspan=2,
-            values=mic_values,
-            initial=mic_initial,
-            command=self._input_device_changed,
-            attr_name="mic_menu",
         )
 
         # Toggles.
@@ -678,101 +736,36 @@ class AppUI:
             attr_name="replacements_chk", row=0, col=1,
         )
 
-        # Atajo activo (full-width).
-        hk_card = ctk.CTkFrame(
-            toggles, fg_color=BG_SURFACE_LOW,
-            border_color=BORDER, border_width=1, corner_radius=4,
-        )
-        hk_card.grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
-        ctk.CTkLabel(
-            hk_card, text="ATAJO ACTIVO",
-            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-        ).pack(side="left", padx=12, pady=10)
+        def _switch_card(row, label, var, cmd, attr):
+            card = ctk.CTkFrame(
+                toggles, fg_color=BG_SURFACE_LOW,
+                border_color=BORDER, border_width=1, corner_radius=4,
+            )
+            card.grid(row=row, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
+            ctk.CTkLabel(
+                card, text=label,
+                font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
+            ).pack(side="left", padx=12, pady=10)
+            sw = ctk.CTkSwitch(
+                card, text="", variable=var, command=cmd,
+                progress_color=PRIMARY_BTN, button_color="#ffffff",
+                fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
+            )
+            sw.pack(side="right", padx=12, pady=8)
+            setattr(self, attr, sw)
+
         self.hotkey_var = tk.BooleanVar(value=bool(self._initial.get("hotkey_enabled", True)))
-        self.hotkey_switch = ctk.CTkSwitch(
-            hk_card, text="", variable=self.hotkey_var,
-            command=self._hotkey_enabled_changed,
-            progress_color=PRIMARY_BTN, button_color="#ffffff",
-            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
-        )
-        self.hotkey_switch.pack(side="right", padx=12, pady=8)
-
-        # Idioma mixto (ES + términos EN). Al activarlo, si el idioma elegido es
-        # "es" se fuerza detección automática en faster-whisper para no cortar
-        # frases que mezclan español con palabras técnicas en inglés.
-        ml_card = ctk.CTkFrame(
-            toggles, fg_color=BG_SURFACE_LOW,
-            border_color=BORDER, border_width=1, corner_radius=4,
-        )
-        ml_card.grid(row=2, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
-        ctk.CTkLabel(
-            ml_card, text="IDIOMA MIXTO (ES + TÉRMINOS EN)",
-            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-        ).pack(side="left", padx=12, pady=10)
-        self.mixed_lang_var = tk.BooleanVar(
-            value=bool(self._initial.get("mixed_language_mode", True))
-        )
-        self.mixed_lang_switch = ctk.CTkSwitch(
-            ml_card, text="", variable=self.mixed_lang_var,
-            command=self._mixed_lang_changed,
-            progress_color=PRIMARY_BTN, button_color="#ffffff",
-            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
-        )
-        self.mixed_lang_switch.pack(side="right", padx=12, pady=8)
-
-        # Iniciar con Windows (full-width).
-        sw_card = ctk.CTkFrame(
-            toggles, fg_color=BG_SURFACE_LOW,
-            border_color=BORDER, border_width=1, corner_radius=4,
-        )
-        sw_card.grid(row=3, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
-        ctk.CTkLabel(
-            sw_card, text="INICIAR CON WINDOWS",
-            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-        ).pack(side="left", padx=12, pady=10)
+        _switch_card(1, "ATAJO ACTIVO", self.hotkey_var, self._hotkey_enabled_changed, "hotkey_switch")
         self.start_with_windows_var = tk.BooleanVar(
             value=bool(self._initial.get("start_with_windows", False))
         )
-        self.start_with_windows_switch = ctk.CTkSwitch(
-            sw_card, text="", variable=self.start_with_windows_var,
-            command=self._start_with_windows_changed,
-            progress_color=PRIMARY_BTN, button_color="#ffffff",
-            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
-        )
-        self.start_with_windows_switch.pack(side="right", padx=12, pady=8)
-
-        # Iniciar minimizada al tray (full-width).
-        sm_card = ctk.CTkFrame(
-            toggles, fg_color=BG_SURFACE_LOW,
-            border_color=BORDER, border_width=1, corner_radius=4,
-        )
-        sm_card.grid(row=4, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
-        ctk.CTkLabel(
-            sm_card, text="INICIAR MINIMIZADA (AL TRAY)",
-            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-        ).pack(side="left", padx=12, pady=10)
+        _switch_card(2, "INICIAR CON WINDOWS", self.start_with_windows_var,
+                     self._start_with_windows_changed, "start_with_windows_switch")
         self.start_minimized_var = tk.BooleanVar(
             value=bool(self._initial.get("start_minimized", False))
         )
-        self.start_minimized_switch = ctk.CTkSwitch(
-            sm_card, text="", variable=self.start_minimized_var,
-            command=self._start_minimized_changed,
-            progress_color=PRIMARY_BTN, button_color="#ffffff",
-            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
-        )
-        self.start_minimized_switch.pack(side="right", padx=12, pady=8)
-
-        # Botón principal.
-        self.toggle_btn = ctk.CTkButton(
-            scroll,
-            text=self._BTN_ICONS["Iniciar grabación"] + "Iniciar grabación",
-            command=self._toggle_clicked,
-            fg_color=PRIMARY_BTN, hover_color=PRIMARY_BTN_HOVER,
-            text_color=PRIMARY_BTN_TEXT,
-            font=self._fnt(17, bold=True),
-            corner_radius=6, height=64,
-        )
-        self.toggle_btn.pack(fill="x", padx=4, pady=(4, 12))
+        _switch_card(3, "INICIAR MINIMIZADA (AL TRAY)", self.start_minimized_var,
+                     self._start_minimized_changed, "start_minimized_switch")
 
         # Ajustes avanzados, plegados: el prompt inicial confunde a quien no
         # sabe qué es Whisper (feedback del usuario, 2026-09-23).
@@ -828,21 +821,6 @@ class AppUI:
         )
         self.initial_prompt_box.pack(fill="x", padx=12, pady=(4, 12))
         self.initial_prompt_box.insert("1.0", self._initial.get("initial_prompt", "") or "")
-
-        # Última transcripción.
-        ctk.CTkLabel(
-            scroll, text="ÚLTIMA TRANSCRIPCIÓN",
-            font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-        ).pack(anchor="w", padx=8, pady=(4, 4))
-
-        self.transcription_box = ctk.CTkTextbox(
-            scroll, height=100, wrap="word",
-            fg_color=BG_SURFACE_HIGH, text_color=TEXT,
-            border_color=PRIMARY_BTN, border_width=1,
-            font=self._fnt(13),
-        )
-        self.transcription_box.pack(fill="x", padx=4, pady=(0, 12))
-        self.transcription_box.configure(state="disabled")
 
     # ---------- Tab: Vocabulario ----------
     # El ciclo de refinado POR USUARIO dentro de la app: hotwords con medidor

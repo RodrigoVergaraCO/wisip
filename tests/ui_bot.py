@@ -145,7 +145,7 @@ def fase_a():
 
     # Pestañas.
     record("A", "Tab Historial", lambda: (ui.tabs.set("Historial"), pump()))
-    record("A", "Tab Transcribe", lambda: (ui.tabs.set("Transcribe"), pump()))
+    record("A", "Tab Inicio", lambda: (ui.tabs.set("Inicio"), pump()))
 
     # Historial: poblar, seleccionar y probar COPIAR/PEGAR/LIMPIAR.
     def hist_ops():
