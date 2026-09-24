@@ -24,6 +24,11 @@ Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
   rangos, zip64, cancelación, fallback sin rangos, sha256).
 - `Wisip.spec` solo empaqueta CUDA con `WISIP_BUNDLE_CUDA=1`; eliminados
   `build_cpu.bat` y `build_installers.bat`.
+- Instalador: limpia `_internal` antes de copiar (`[InstallDelete]`; una
+  actualización desde un instalador GPU dejaba 1,9 GB de DLLs huérfanas) y
+  cierra un Wisip en ejecución antes de instalar (evento de instancia única +
+  `taskkill` de respaldo; el Restart Manager de Windows no lograba cerrarlo
+  porque la X oculta al tray, y la instalación silenciosa abortaba).
 
 ## 2.6.0 — 2026-09-23
 

@@ -79,3 +79,51 @@ Name: "{autodesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; IconFilen
 ; flag, el proceso hijo heredaría la elevación del instalador y Wisip arrancaría
 ; como administrador esa primera vez (justo lo que queremos evitar).
 Filename: "{app}\{#MyAppExeName}"; Description: "{cm:LaunchProgram,{#StringChange(MyAppName, '&', '&&')}}"; Flags: nowait postinstall skipifsilent runasoriginaluser
+
+[Code]
+// Cierra un Wisip en ejecución ANTES de que Setup revise archivos en uso.
+// Wisip "oculta al tray" con la X, así que el Restart Manager de Windows no
+// logra cerrarlo y la instalación silenciosa abortaba con archivos en uso
+// (exit 5, log 2026-09-23). Dos capas: (1) el mismo evento Win32 que usa la
+// instancia única de Wisip para pedir cierre limpio; (2) taskkill de respaldo.
+function OpenEventW(dwDesiredAccess: DWORD; bInheritHandle: BOOL; lpName: String): THandle;
+  external 'OpenEventW@kernel32.dll stdcall';
+function SetEvent(hEvent: THandle): BOOL;
+  external 'SetEvent@kernel32.dll stdcall';
+function CloseHandle(hObject: THandle): BOOL;
+  external 'CloseHandle@kernel32.dll stdcall';
+
+procedure CloseRunningWisip();
+var
+  h: THandle;
+  Ok: Boolean;
+  ResultCode: Integer;
+begin
+  h := OpenEventW(2 { EVENT_MODIFY_STATE }, False, 'Local\Wisip_CerrarInstanciaPrevia');
+  if h <> 0 then
+  begin
+    SetEvent(h);
+    CloseHandle(h);
+    Log('Wisip: evento de cierre limpio enviado');
+    Sleep(2500);
+  end
+  else
+    Log('Wisip: sin instancia (evento no existe)');
+  ResultCode := -1;
+  Ok := Exec(ExpandConstant('{cmd}'), '/C taskkill /IM Wisip.exe /F /T', '',
+             SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Log('taskkill Wisip.exe -> exec=' + IntToStr(Integer(Ok)) + ' code=' + IntToStr(ResultCode));
+  Sleep(1000);
+end;
+
+function InitializeSetup(): Boolean;
+begin
+  CloseRunningWisip();
+  Result := True;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  CloseRunningWisip();
+  Result := '';
+end;
