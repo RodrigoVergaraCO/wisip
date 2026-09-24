@@ -5,7 +5,9 @@
 - split/join de oraciones y párrafos, idioma igual → sin cambios,
   paquete ausente → error claro, instalación desde un zip local.
 - MultiHotkeyManager con eventos simulados: el chord más largo gana
-  (Ctrl+Win+Shift+Espacio no dispara el de dictar), supresión, release.
+  (Ctrl+Win+Shift no dispara el de dictar), supresión, release, cambio de
+  chord sin soltar (Ctrl+Win → +Shift), tecla fantasma anti-menú Inicio,
+  y chords personalizados con tecla normal (Ctrl+Win+Espacio).
 - Si los paquetes reales están instalados en %LOCALAPPDATA%\\Wisip\\models,
   traduce una frase de verdad en cada sentido (se salta si no están).
 
@@ -93,31 +95,66 @@ def main():
         shutil.rmtree(tmp, ignore_errors=True)
 
     print("── MultiHotkeyManager (eventos simulados) ──")
+    import time
+    masked = []
+    orig_mask = hk._mask_win_key
+    hk._mask_win_key = lambda: masked.append(1)
     fired = []
     m = hk.MultiHotkeyManager(
         on_press=lambda n: fired.append(("press", n)), on_release=lambda n: fired.append(("release", n)),
-        hotkeys={"dictate": "ctrl+windows+space", "translate": "ctrl+windows+shift+space"},
+        on_switch=lambda a, b: fired.append(("switch", a, b)),
+        hotkeys={"dictate": tr.config.DEFAULT_HOTKEY, "translate": tr.config.DEFAULT_HOTKEY_TRANSLATE},
     )
+    check("defaults sin Espacio", "space" not in tr.config.DEFAULT_HOTKEY and "space" not in tr.config.DEFAULT_HOTKEY_TRANSLATE)
     m._keys = {n: hk._normalize_keys(v) for n, v in m._hotkeys.items()}
     def press(*names):
         return [m._on_event(_Ev(n, hk.keyboard.KEY_DOWN)) for n in names]
     def release(*names):
         return [m._on_event(_Ev(n, hk.keyboard.KEY_UP)) for n in names]
-    import time
-    press("ctrl", "windows", "shift"); r = press("space"); time.sleep(0.05)
-    check("Ctrl+Win+Shift+Espacio dispara SOLO traducir", fired == [("press", "translate")], str(fired))
-    check("la tecla del chord se suprime", r == [False])
-    release("space", "shift", "windows", "ctrl"); time.sleep(0.05)
-    check("soltar dispara release de traducir", fired[-1] == ("release", "translate"))
-    fired.clear()
-    press("ctrl", "windows", "space"); time.sleep(0.05)
-    check("Ctrl+Win+Espacio dispara dictar", fired == [("press", "dictate")], str(fired))
-    press("shift"); time.sleep(0.05)
-    check("añadir shift después NO re-dispara", fired == [("press", "dictate")], str(fired))
-    release("space", "windows", "ctrl", "shift"); time.sleep(0.05)
-    check("release de dictar", fired[-1] == ("release", "dictate"))
-    check("tecla ajena pasa", m._on_event(_Ev("a", hk.keyboard.KEY_DOWN)) is True)
-    m.rebind("translate", "f9"); check("rebind cambia el chord", m.current_for("translate") == "f9" and m.current == "ctrl+windows+space")
+    try:
+        # 1) Ctrl+Win dispara dictar; la tecla que completa el chord se suprime.
+        r = press("ctrl", "windows"); time.sleep(0.05)
+        check("Ctrl+Win dispara dictar", fired == [("press", "dictate")], str(fired))
+        check("ctrl pasa, windows (completa el chord) se suprime", r == [True, False], str(r))
+        check("tecla fantasma inyectada (chord con Win)", masked == [1], str(masked))
+        # 2) Añadir Shift sin soltar → cambio a traducir, sin release ni press nuevo.
+        r = press("shift"); time.sleep(0.05)
+        check("añadir Shift cambia a traducir sin soltar", fired == [("press", "dictate"), ("switch", "dictate", "translate")], str(fired))
+        check("shift del chord activo se suprime", r == [False], str(r))
+        # 3) Soltar cualquier tecla del chord activo termina.
+        release("shift"); time.sleep(0.05)
+        check("soltar shift → release de traducir", fired[-1] == ("release", "translate"), str(fired))
+        release("windows", "ctrl"); time.sleep(0.05)
+        check("soltar el resto no dispara nada más", fired[-1] == ("release", "translate") and len(fired) == 3, str(fired))
+        # 4) Orden libre: Shift primero → dispara SOLO traducir.
+        fired.clear(); masked.clear()
+        press("shift", "windows", "ctrl"); time.sleep(0.05)
+        check("Shift+Win+Ctrl (orden libre) dispara SOLO traducir", fired == [("press", "translate")], str(fired))
+        release("ctrl", "windows", "shift"); time.sleep(0.05)
+        check("release de traducir", fired[-1] == ("release", "translate"))
+        check("tecla ajena pasa", m._on_event(_Ev("a", hk.keyboard.KEY_DOWN)) is True)
+        # 5) Chords personalizados con tecla normal siguen funcionando.
+        fired.clear(); masked.clear()
+        m.rebind("dictate", "ctrl+windows+space"); m.rebind("translate", "ctrl+windows+shift+space")
+        m._keys = {n: hk._normalize_keys(v) for n, v in m._hotkeys.items()}
+        press("ctrl", "windows", "shift"); r = press("space"); time.sleep(0.05)
+        check("Ctrl+Win+Shift+Espacio dispara SOLO traducir", fired == [("press", "translate")], str(fired))
+        check("la barra se suprime", r == [False])
+        release("space", "shift", "windows", "ctrl"); time.sleep(0.05)
+        fired.clear()
+        press("ctrl", "windows", "space"); time.sleep(0.05)
+        check("Ctrl+Win+Espacio dispara dictar", fired == [("press", "dictate")], str(fired))
+        release("space", "windows", "ctrl"); time.sleep(0.05)
+        check("release de dictar", fired[-1] == ("release", "dictate"))
+        # 6) Chord sin Win/Alt no inyecta tecla fantasma; stop deja _fired en None.
+        masked.clear(); fired.clear()
+        m.rebind("translate", "f9"); m._keys = {n: hk._normalize_keys(v) for n, v in m._hotkeys.items()}
+        press("f9"); time.sleep(0.05); release("f9"); time.sleep(0.05)
+        check("F9 dispara y no inyecta fantasma", fired == [("press", "translate"), ("release", "translate")] and masked == [], str((fired, masked)))
+        check("rebind cambia el chord", m.current_for("translate") == "f9" and m.current == "ctrl+windows+space")
+        m.stop(); check("stop deja el chord activo en None", m._fired is None)
+    finally:
+        hk._mask_win_key = orig_mask
 
     print("── Traducción real (si hay paquetes) ──")
     if tr.pack_installed("es-en") and tr.pack_installed("en-es"):

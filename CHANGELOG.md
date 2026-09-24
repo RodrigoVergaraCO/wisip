@@ -3,6 +3,24 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.12.1 — 2026-09-24
+
+- **Atajos por defecto sin Espacio**: dictar = `Ctrl + Win`, traducir =
+  `Ctrl + Win + Shift`. Los chords con Win + Espacio abrían el selector de
+  idioma de teclado de Windows cuando la barra llegaba antes que los
+  modificadores (en PCs con dos distribuciones, lo normal en usuarios
+  bilingües). Las instalaciones con el default anterior se migran solas; una
+  tecla elegida por el usuario se respeta.
+- **Cambio de modo sin soltar**: si ya dictas con Ctrl + Win y añades Shift,
+  la grabación sigue y al final se traduce (`on_switch` en
+  `MultiHotkeyManager`; la barra flotante pasa a mostrar EN/ES al instante).
+- **Tecla fantasma anti-menú Inicio**: al dispararse un chord con Win o Alt
+  se inyecta una tecla virtual sin asignar (0xE8, la técnica de AutoHotkey)
+  para que soltar Win no abra el menú Inicio ni Alt active la barra de menús.
+  Verificado inyectando las teclas en los tres órdenes posibles.
+- Arreglado `HotkeyManager.stop()` (había quedado dentro de la subclase y el
+  gestor múltiple no volvía a disparar tras un rebind).
+
 ## 2.12.0 — 2026-09-24
 
 - **Dictar y traducir** (`app/translator.py`): un segundo atajo,

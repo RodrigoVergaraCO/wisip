@@ -115,10 +115,10 @@ def main():
         on_license_activate=noop, on_license_deactivate=noop,
         on_vocab_tokens=lambda t: ("208 / 224 tokens", False),
         on_vocab_list=lambda: [("proxifyr", "Proxifier"), ("herzner", "Hetzner"), ("goblogin", "GoLogin")],
-        initial_settings={"hotkey": "ctrl+windows+space", "model": "large-v3-turbo",
+        initial_settings={"hotkey": "ctrl+windows", "model": "large-v3-turbo",
                           "quality_profile": "accurate_gpu", "performance_profile": "fast_safe",
                           "input_device_name": "", "hotwords": "proxy, MEmu, GoLogin, Hetzner, Billions Manager"},
-        hotkey_label="ctrl+windows+space",
+        hotkey_label="ctrl+windows",
     )
     ui.set_backend("CUDA float16 · large-v3-turbo")
     ui.set_status("idle")
@@ -151,10 +151,10 @@ def main():
 
     # 2) Asistente inicial, paso del micrófono.
     wiz = OnboardingWizard(
-        root, palette=PAL, initial={"language": "es", "hotkey": "ctrl+windows+space"},
+        root, palette=PAL, initial={"language": "es", "hotkey": "ctrl+windows"},
         devices=[{"index": 1, "name": "Micrófono (Razer Kraken V3 X)", "hostapi": 0, "default": True},
                  {"index": 2, "name": "Webcam C920", "hostapi": 0, "default": False}],
-        hotkey_label="ctrl+windows+space", gpu_info={"name": "NVIDIA GeForce RTX 3060", "vram_mb": 12288},
+        hotkey_label="ctrl+windows", gpu_info={"name": "NVIDIA GeForce RTX 3060", "vram_mb": 12288},
         get_level=lambda: 0.62, on_device_preview=lambda n: True, on_rebind=noop, on_finish=noop,
     )
     root.update(); wiz.win.geometry("+900+120")

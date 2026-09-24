@@ -59,7 +59,7 @@ medio segundo. Sin GPU cae a CPU automáticamente.
 - **Asistente de primer arranque.** Consentimiento del registro local,
   selector de micrófono con medidor en vivo, captura de la tecla, idioma y
   modo mixto, oferta de aceleración GPU. Cinco pasos cortos, una sola vez.
-- **Dictar y traducir.** Un segundo atajo (`Ctrl + Win + Shift + Espacio`)
+- **Dictar y traducir.** Un segundo atajo (`Ctrl + Win + Shift`, o añadir Shift mientras dictas)
   transcribe como siempre y pega la traducción: hablas en español y sale en
   inglés, o al revés. El idioma destino se elige en Inicio; si lo dicho ya
   está en ese idioma se deja igual. Modelos OPUS-MT (Helsinki-NLP)
@@ -89,7 +89,7 @@ python main.py
 
 La primera ejecución descarga el modelo a `~/.cache/huggingface/hub` (`small`
 ≈ 480 MB en CPU; `large-v3-turbo` ≈ 1,6 GB se elige solo cuando detecta una
-GPU que funciona). El atajo por defecto es <kbd>Ctrl</kbd> + <kbd>Win</kbd> + <kbd>Espacio</kbd>
+GPU que funciona). El atajo por defecto es <kbd>Ctrl</kbd> + <kbd>Win</kbd>
 (mantener para hablar); se cambia desde la app.
 
 > Si abres `main.py` con doble clic, Wisip se relanza con el intérprete del

@@ -66,7 +66,7 @@ about half a second. Without a GPU it falls back to CPU automatically.
 - **First-run wizard.** Privacy consent for the local log, microphone picker
   with a live level meter, hotkey capture, language and mixed mode, GPU
   acceleration offer. Five short steps, shown once.
-- **Dictate and translate.** A second hotkey (`Ctrl + Win + Shift + Space`)
+- **Dictate and translate.** A second hotkey (`Ctrl + Win + Shift`, or just add Shift while dictating)
   transcribes as usual and pastes the translation instead: speak Spanish, get
   English, or the other way round. Pick the target language in the Home tab;
   if what you said is already in that language it is left untouched.
@@ -96,7 +96,7 @@ python main.py
 
 The first run downloads the Whisper model to `~/.cache/huggingface/hub`
 (`small` ≈ 480 MB on CPU; `large-v3-turbo` ≈ 1.6 GB is selected automatically
-when a working GPU is found). Default hotkey is <kbd>Ctrl</kbd> + <kbd>Win</kbd> + <kbd>Space</kbd>
+when a working GPU is found). Default hotkey is <kbd>Ctrl</kbd> + <kbd>Win</kbd>
 (hold to talk); change it from the app.
 
 > If you double-click `main.py`, Wisip re-launches itself with the venv's

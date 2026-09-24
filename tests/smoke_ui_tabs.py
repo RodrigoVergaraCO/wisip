@@ -53,8 +53,8 @@ def main():
         on_close_request=cb("close"), on_theme_change=cb("theme"),
         on_gpu_pack_install=cb("gpu_pack"), on_input_device_change=cb("mic"),
         on_license_activate=cb("lic_act"), on_license_deactivate=cb("lic_deact"),
-        initial_settings={"hotkey": "ctrl+windows+space", "input_device_name": "Micrófono X"},
-        hotkey_label="ctrl+windows+space",
+        initial_settings={"hotkey": "ctrl+windows", "input_device_name": "Micrófono X"},
+        hotkey_label="ctrl+windows",
     )
 
     def pump(n=2):
@@ -78,7 +78,7 @@ def main():
                  "start_minimized_switch", "adv_btn", "initial_prompt_box", "initial_prompt_chk",
                  "license_entry", "license_state_label", "history_listbox"]:
         check(f"existe {attr}", hasattr(ui, attr))
-    check("tecla legible", "Ctrl + Win + Espacio" in ui.hotkey_key_label.cget("text"), ui.hotkey_key_label.cget("text"))
+    check("tecla legible", ui.hotkey_key_label.cget("text").strip() == "Ctrl + Win", ui.hotkey_key_label.cget("text"))
     check("micro no conectado marcado", "(no conectado)" in ui.mic_menu.get(), ui.mic_menu.get())
 
     print("── Avanzado plegado / desplegado ──")

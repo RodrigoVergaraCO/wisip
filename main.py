@@ -169,6 +169,7 @@ class Controller:
         self.hotkeys = MultiHotkeyManager(
             on_press=self._hotkey_press,
             on_release=self._hotkey_release,
+            on_switch=self._hotkey_switch,
             on_log=self._log,
             hotkeys={"dictate": self.settings.get("hotkey"),
                      "translate": self.settings.get("hotkey_translate")},
@@ -1255,6 +1256,24 @@ class Controller:
             self._start_recording_internal()
         finally:
             self._press_done.set()
+
+    def _hotkey_switch(self, old: str, new: str):
+        """El usuario completó un chord más largo sin soltar el activo
+        (Ctrl+Win → Ctrl+Win+Shift): cambia el modo de la grabación en curso
+        sin cortarla. Solo afecta al final (traducir o no) y a la barra."""
+        self._recording_mode = "translate" if new == "translate" else "dictate"
+        with self._state_lock:
+            recording = self._state == "recording" and self._recording_source == "hotkey"
+        if not recording:
+            return
+        tag = None
+        if self._recording_mode == "translate":
+            tag = str(self.settings.get("translate_target") or "en").upper()
+        try:
+            self.floating_bar.set_mode_tag(tag, apply_now=True)
+        except Exception:
+            pass
+        self._log(f"[hotkey] {old} → {new} sin soltar: modo {self._recording_mode}")
 
     def _hotkey_release(self, which: str = "dictate"):
         if not bool(self.settings.get("hotkey_enabled")):

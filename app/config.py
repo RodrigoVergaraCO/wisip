@@ -675,14 +675,20 @@ CHANNELS = 1
 # un switch "Atajo activo" en la ventana principal de la app.
 # Para cambiar el hotkey: edita "hotkey" en %APPDATA%\local-voice-typer\app_settings.json
 # (ej. "f9", "f10", "pause", "capslock", "ctrl+shift+space").
-# Ctrl + Win + Espacio: existe en todos los teclados y es el mismo atajo que
-# usa Wispr Flow en Windows (antes "|", que falta en muchos teclados). Las
-# instalaciones existentes conservan su tecla guardada.
-DEFAULT_HOTKEY = "ctrl+windows+space"
-# Segundo atajo (2.12.0): mantener para dictar y TRADUCIR al idioma destino.
-# Contiene al anterior a propósito: el gestor de atajos da prioridad al chord
-# más largo, así que añadir Shift cambia de modo sin conflicto.
-DEFAULT_HOTKEY_TRANSLATE = "ctrl+windows+shift+space"
+# Ctrl + Win (solo modificadores, 2.12.1): existe en todos los teclados y no
+# choca con Windows. Los chords con Espacio + Win (2.8–2.12.0) abrían el
+# selector de idioma de Windows (Win+Espacio) si la barra llegaba antes que
+# los modificadores; un chord sin tecla "normal" no puede filtrarse. El
+# gestor de atajos inyecta una tecla fantasma al dispararse para que soltar
+# Win no abra el menú Inicio. Las instalaciones que guardaron el default
+# anterior se migran (settings.py); las teclas personalizadas se respetan.
+DEFAULT_HOTKEY = "ctrl+windows"
+V1_DEFAULT_HOTKEY = "ctrl+windows+space"
+# Segundo atajo: mantener para dictar y TRADUCIR al idioma destino. Contiene
+# al anterior a propósito: si ya estás dictando con Ctrl+Win y añades Shift,
+# el gestor cambia a modo traducir sin cortar la grabación.
+DEFAULT_HOTKEY_TRANSLATE = "ctrl+windows+shift"
+V1_DEFAULT_HOTKEY_TRANSLATE = "ctrl+windows+shift+space"
 TRANSLATE_TARGET_LABELS = {"en": "Inglés", "es": "Español"}
 TRANSLATE_LABEL_TO_CODE = {v: k for k, v in TRANSLATE_TARGET_LABELS.items()}
 # Paquetes de traducción OPUS-MT convertidos a CTranslate2 int8 (release

@@ -603,6 +603,7 @@ class AppUI:
         ctk.CTkLabel(
             tleft,
             text="Hablas en un idioma y el texto sale en el otro (español ↔ inglés), sin internet. "
+                 "Si ya estás dictando, añade la tecla extra sin soltar y se traduce igual. "
                  "El primer uso descarga el traductor (~80 MB).",
             font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left", wraplength=560,
         ).pack(anchor="w")

@@ -152,6 +152,17 @@ class Settings:
                 merged["initial_prompt"] = config.DEFAULT_INITIAL_PROMPT
             if not isinstance(merged.get("hotwords"), str):
                 merged["hotwords"] = config.DEFAULT_HOTWORDS
+            # Migración 2.12.1: los defaults con Win + Espacio abrían el
+            # selector de idioma de Windows. Solo si coincide EXACTO con el
+            # default anterior (una tecla elegida por el usuario se respeta).
+            if merged.get("hotkey") == config.V1_DEFAULT_HOTKEY:
+                merged["hotkey"] = config.DEFAULT_HOTKEY
+                self._safe_log(f"[settings] hotkey {config.V1_DEFAULT_HOTKEY!r} → "
+                               f"{config.DEFAULT_HOTKEY!r} (sin Espacio: chocaba con Win+Espacio)")
+            if merged.get("hotkey_translate") == config.V1_DEFAULT_HOTKEY_TRANSLATE:
+                merged["hotkey_translate"] = config.DEFAULT_HOTKEY_TRANSLATE
+                self._safe_log(f"[settings] hotkey_translate {config.V1_DEFAULT_HOTKEY_TRANSLATE!r} → "
+                               f"{config.DEFAULT_HOTKEY_TRANSLATE!r} (sin Espacio: chocaba con Win+Espacio)")
             # Migración hotwords v1 → v2 (añade Seedance y kie.ai). Igual que
             # las del prompt: solo si coincide EXACTO con el default anterior,
             # para no pisar ediciones manuales del usuario.

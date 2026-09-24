@@ -247,10 +247,16 @@ class FloatingBar:
         self.hotkey_label = (label or "").upper()
 
     # ---------- implementaciones reales (en hilo Tk) ----------
-    def set_mode_tag(self, text):
+    def set_mode_tag(self, text, apply_now: bool = False):
         """Texto corto (≤3 letras) que sustituye al punto rojo mientras se
-        graba, p.ej. "EN" en modo dictar y traducir. None = punto normal."""
+        graba, p.ej. "EN" en modo dictar y traducir. None = punto normal.
+        `apply_now`: repinta ya (cambio de modo sin soltar el atajo)."""
         self._mode_tag = (text or "")[:3] or None
+        if apply_now:
+            try:
+                self.parent_root.after(0, lambda: self._apply_mode_tag(True))
+            except Exception:
+                pass
 
     def _apply_mode_tag(self, recording: bool):
         try:
@@ -259,6 +265,7 @@ class FloatingBar:
                 self.canvas.itemconfigure(self.tag_id, state="normal", text=self._mode_tag)
             else:
                 self.canvas.itemconfigure(self.tag_id, state="hidden")
+                self.canvas.itemconfigure(self.dot_id, state="normal")
         except Exception:
             pass
 

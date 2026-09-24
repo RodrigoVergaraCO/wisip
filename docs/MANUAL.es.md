@@ -54,15 +54,19 @@ python main.py
 
 1. Lanza la app. Espera a que en logs aparezca `modelo 'base' listo`.
 2. **Haz clic en el input destino** (ej. el campo de ChatGPT en Chrome).
-3. Presiona **`Ctrl + Win + Espacio`** → la app pasa a *Grabando…* y suena un beep.
-4. Habla en español.
-5. Presiona **`Ctrl + Win + Espacio`** otra vez → *Transcribiendo… → Pegando… → Inactivo*. Suena otro beep.
+3. Mantén **`Ctrl + Win`** (o el atajo que hayas elegido) → la app pasa a *Grabando…* y suena un beep.
+4. Habla con normalidad, en español o en inglés.
+5. Suelta → *Transcribiendo… → Pegando… → Inactivo*. Suena otro beep.
 6. El texto aparece dentro del input.
 
 ## Dictar y traducir
 
-Además de la tecla de dictar hay un segundo atajo, **`Ctrl + Win + Shift + Espacio`**
+Además de la tecla de dictar hay un segundo atajo, **`Ctrl + Win + Shift`**
 (se cambia en Inicio → "Cambiar atajo"). Funciona igual: mantén, habla, suelta.
+Si ya estás dictando con Ctrl + Win, basta con añadir Shift sin soltar: la
+grabación sigue y al final se traduce. Los atajos por defecto no llevan
+Espacio a propósito: Win + Espacio es el selector de idioma de teclado de
+Windows y se abría cuando la barra llegaba antes que los modificadores.
 La diferencia es que el texto se pega **traducido** al idioma que elijas en
 Inicio → "Traducir a" (Inglés o Español):
 
@@ -104,7 +108,7 @@ Llaves disponibles:
 |---|---|---|---|
 | `model` | string | `"small"` | `tiny`, `base`, `small`, `medium` o `large-v3-turbo`. En CPU: `small`. Con GPU NVIDIA: **`large-v3-turbo`** (máxima calidad y además más rápido que `small` — la app migra sola la primera vez que detecta GPU). |
 | `language` | string | `"es"` | Idioma para Whisper. `"es"` recomendado (estable). `"auto"` solo si dictas frases muy densas en inglés. `task` siempre es `transcribe` (nunca traduce). |
-| `hotkey` | string | `"|"` | Atajo global (push-to-talk). Ejemplos: `"ctrl+windows+space"`, `"ctrl+alt+space"`, `"f9"`. Cambiable desde la app (botón 👆). |
+| `hotkey` | string | `"ctrl+windows"` | Atajo global (push-to-talk). Ejemplos: `"ctrl+windows"`, `"ctrl+alt+space"`, `"f9"`, `"|"`. Cambiable desde la app (botón 👆). |
 | `paste_mode` | string | `"paste"` | `"paste"` = copia y pega. `"copy_only"` = sólo copia. |
 | `paste_delay_ms` | int | `200` | Pausa (ms) entre copiar al portapapeles y enviar Ctrl+V. Súbelo si alguna app "se come" el pegado por ir muy rápido. Rango 0–5000. |
 | `beep_enabled` | bool | `true` | Beeps de inicio / fin / error. |
