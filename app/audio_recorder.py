@@ -37,6 +37,10 @@ class AudioRecorder:
         self._recording = False
         self._lock = threading.Lock()
         self._current_level = 0.0
+        # Pico absoluto (0-1) desde que empezó la grabación actual: si tras
+        # varios segundos sigue bajo DIGITAL_SILENCE_PEAK, el micro está en
+        # mute por hardware y la barra flotante lo avisa en vivo.
+        self._session_peak = 0.0
         # Consumidor opcional de bloques en vivo (transcripción incremental).
         self._chunk_sink = None
         # Índice de sounddevice del micrófono (None = predeterminado).
@@ -107,6 +111,9 @@ class AudioRecorder:
         """Devuelve el nivel actual de audio en [0, 1] para visualizar."""
         return self._current_level
 
+    def session_peak(self) -> float:
+        return self._session_peak
+
     def _callback(self, indata, frames, time_info, status):
         if status:
             self.on_log(f"[audio] status: {status}")
@@ -124,6 +131,9 @@ class AudioRecorder:
                 rms = float(np.sqrt(np.mean(arr * arr))) / 32768.0
                 # Voz típica ~0.01-0.1 RMS; multiplicamos para llegar visualmente a 0-1.
                 self._current_level = min(1.0, rms * 8.0)
+                peak = float(np.max(np.abs(arr))) / 32768.0
+                if peak > self._session_peak:
+                    self._session_peak = peak
         except Exception:
             pass
 
@@ -139,6 +149,7 @@ class AudioRecorder:
                 return
             self._frames = []
             self._current_level = 0.0
+            self._session_peak = 0.0
             self._chunk_sink = chunk_sink
             try:
                 self._stream = sd.InputStream(

@@ -63,7 +63,7 @@ from app.license import LicenseManager
 from app.version import __version__
 from app.onboarding import OnboardingWizard, default_result as onboarding_defaults
 from app.setup_window import SetupWindow
-from app.audio_recorder import AudioRecorder, is_digital_silence
+from app.audio_recorder import AudioRecorder, DIGITAL_SILENCE_PEAK, is_digital_silence
 from app.beeps import Beeps
 from app.dictation_log import DictationLog
 from app.floating_bar import FloatingBar
@@ -568,6 +568,14 @@ class Controller:
         """Corre en el hilo de preload. Bloquea hasta que el usuario termina."""
         if bool(self.settings.get("first_run_done")):
             return
+        # Idioma de dictado por defecto según el idioma de Windows (solo la
+        # primera vez; el asistente lo muestra preseleccionado y se puede cambiar).
+        try:
+            if config.system_language() == "en" and self.settings.get("language") == config.LANGUAGE:
+                self.settings.set("language", "en")
+                self._log("[onboarding] Windows en inglés: idioma de dictado inicial = en")
+        except Exception:
+            pass
         gpu = None
         try:
             gpu = self._gpu_pack_needed()
@@ -1324,11 +1332,33 @@ class Controller:
             self._set_state("recording")
             self.ui.set_button_text("Detener y transcribir")
             self.beeps.start()
+            threading.Thread(target=self._watch_mic_silence, daemon=True, name="mic-watch").start()
         except Exception as e:
             self._log(f"[audio] no se pudo iniciar: {e}")
             self._set_state("error")
             self.ui.set_button_text("Iniciar grabación")
             self.beeps.error()
+
+    def _watch_mic_silence(self):
+        """Mientras se graba: si tras 3 s el micro sigue en ceros digitales
+        (mute por hardware, caso Kraken), lo avisa en la barra flotante en
+        vivo en vez de solo al soltar la tecla."""
+        t0 = time.time()
+        shown = False
+        while True:
+            time.sleep(0.5)
+            with self._state_lock:
+                if self._state != "recording":
+                    break
+            if time.time() - t0 < 3.0:
+                continue
+            silent = self.recorder.session_peak() < DIGITAL_SILENCE_PEAK
+            if silent and not shown:
+                self.floating_bar.set_recording_hint("¿Micrófono en silencio?")
+                shown = True
+            elif not silent and shown:
+                self.floating_bar.set_recording_hint(None)
+                shown = False
 
     def _process_pipeline(self):
         try:

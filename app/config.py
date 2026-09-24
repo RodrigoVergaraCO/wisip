@@ -208,6 +208,17 @@ MODEL_HINTS = {
 LANGUAGE = "es"
 TASK = "transcribe"
 
+
+def system_language() -> str:
+    """'en' si la interfaz de Windows está en inglés; 'es' en cualquier otro
+    caso (el producto es español-primero). Solo se usa en el primer arranque."""
+    try:
+        import ctypes
+        langid = int(ctypes.windll.kernel32.GetUserDefaultUILanguage())
+        return "en" if (langid & 0x3FF) == 0x09 else "es"
+    except Exception:
+        return "es"
+
 # Opciones de idioma para la UI.
 # "auto" → faster-whisper detecta el idioma (language=None).
 LANGUAGE_LABEL_ES = "Español"

@@ -525,12 +525,23 @@ class AppUI:
 
         left_block = ctk.CTkFrame(hint_inner, fg_color="transparent")
         left_block.pack(side="left", fill="x", expand=True)
+        key_row = ctk.CTkFrame(left_block, fg_color="transparent")
+        key_row.pack(anchor="w")
         self.hotkey_main_label = ctk.CTkLabel(
-            left_block,
-            text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
-            font=self._fnt(15, bold=True), text_color=TEXT, anchor="w",
+            key_row, text="Mantén", font=self._fnt(15, bold=True), text_color=TEXT, anchor="w",
         )
-        self.hotkey_main_label.pack(anchor="w")
+        self.hotkey_main_label.pack(side="left")
+        # La tecla como "keycap" en el color de acento: se distingue del texto.
+        self.hotkey_key_label = ctk.CTkLabel(
+            key_row, text=pretty_hotkey(self._hotkey_label),
+            font=self._fnt_mono(14), text_color=PRIMARY, fg_color=ACCENT_CONTAINER,
+            corner_radius=6, padx=10, pady=2,
+        )
+        self.hotkey_key_label.pack(side="left", padx=8)
+        self.hotkey_tail_label = ctk.CTkLabel(
+            key_row, text="para grabar", font=self._fnt(15, bold=True), text_color=TEXT, anchor="w",
+        )
+        self.hotkey_tail_label.pack(side="left")
         self.hotkey_label_widget = ctk.CTkLabel(
             left_block,
             text="Suéltalo para transcribir y pegar  ·  Click 👆 para cambiar la tecla",
@@ -1633,6 +1644,12 @@ class AppUI:
         except Exception:
             pass
         for w in self.root.winfo_children():
+            # Las Toplevel hijas (barra flotante, ventana de descarga,
+            # asistente) NO son parte del contenido: destruirlas dejaba la
+            # barra flotante muerta tras cambiar el tema (bug real 2026-09-24,
+            # "bad window path name .!toplevel").
+            if isinstance(w, tk.Toplevel):
+                continue
             try:
                 w.destroy()
             except Exception:
@@ -1783,16 +1800,17 @@ class AppUI:
                         text="Pulsa la nueva combinación…",
                         text_color=SECONDARY,
                     )
+                    self.hotkey_key_label.configure(text="…")
+                    self.hotkey_tail_label.configure(text="")
                     self.hotkey_label_widget.configure(
                         text="Esc para cancelar",
                         text_color=SECONDARY,
                     )
                     self.rebind_btn.configure(text="⏺", text_color=SECONDARY)
                 else:
-                    self.hotkey_main_label.configure(
-                        text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
-                        text_color=TEXT,
-                    )
+                    self.hotkey_main_label.configure(text="Mantén", text_color=TEXT)
+                    self.hotkey_key_label.configure(text=pretty_hotkey(self._hotkey_label))
+                    self.hotkey_tail_label.configure(text="para grabar")
                     self.hotkey_label_widget.configure(
                         text="Suéltalo para transcribir y pegar  ·  Click 👆 para cambiar la tecla",
                         text_color=TEXT_MUTED,
@@ -1810,9 +1828,7 @@ class AppUI:
         self._hotkey_label = (label or self._hotkey_label)
         def _do():
             try:
-                self.hotkey_main_label.configure(
-                    text=f"Mantén {pretty_hotkey(self._hotkey_label)} para grabar",
-                )
+                self.hotkey_key_label.configure(text=pretty_hotkey(self._hotkey_label))
             except Exception:
                 pass
         try:

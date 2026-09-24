@@ -31,6 +31,7 @@ WAVE_ACTIVE = "#f2f2f7"  # blanco suave: barras con voz
 WAVE_IDLE = "#8e8e93"    # gris: barras en espera/procesando
 OK_COLOR = "#30d158"
 ERR_COLOR = "#ff453a"
+WARN_COLOR = "#ffd60a"   # aviso mientras se graba (micro en silencio)
 
 # Punto de estado y zona de onda
 DOT_X = 16               # centro del punto
@@ -75,8 +76,12 @@ class FloatingBar:
         self._levels = [0.0] * WAVE_N   # historial de niveles (scroll ←)
         self._phase = 0.0               # fase de la onda "procesando"
 
-        self.top = tk.Toplevel(parent_root)
-        self.top.title("Local Voice Typer Bar")
+        self._create_top()
+
+    def _create_top(self):
+        """Crea (o recrea) la Toplevel de la barra y su canvas."""
+        self.top = tk.Toplevel(self.parent_root)
+        self.top.title("Wisip Bar")
         self.top.overrideredirect(True)
         self.top.attributes("-topmost", True)
         try:
@@ -105,6 +110,20 @@ class FloatingBar:
         self.top.withdraw()
         # Aplicar NOACTIVATE después de que la ventana exista.
         self.parent_root.after(50, self._apply_noactivate)
+
+    def _ensure_top(self):
+        """Si alguien destruyó la Toplevel (p.ej. un rebuild que barrió los
+        hijos del root), la vuelve a crear en vez de fallar en silencio."""
+        try:
+            alive = bool(self.top.winfo_exists())
+        except Exception:
+            alive = False
+        if not alive:
+            self.on_log("[bar] ventana destruida: la vuelvo a crear")
+            self._anim_after_id = None
+            self._hide_after_id = None
+            self._visible = False
+            self._create_top()
 
     # ---------- construcción del canvas ----------
     def _build_canvas(self):
@@ -197,6 +216,20 @@ class FloatingBar:
     def show_error_and_hide(self, msg: str = "Error", delay_ms: int = 2200):
         self.parent_root.after(0, lambda: self._do_show_error(msg, delay_ms))
 
+    def set_recording_hint(self, text):
+        """Aviso breve sobre las barras mientras se graba (None = quitarlo)."""
+        self.parent_root.after(0, lambda: self._do_set_hint(text))
+
+    def _do_set_hint(self, text):
+        if self._anim_mode != "voice":
+            return
+        if text:
+            self._set_bars_visible(False)
+            self._set_text(text, WARN_COLOR)
+        else:
+            self._set_text(None)
+            self._set_bars_visible(True, WAVE_ACTIVE)
+
     def hide(self):
         self.parent_root.after(0, self._do_hide)
 
@@ -260,6 +293,7 @@ class FloatingBar:
     # ---------- helpers internos ----------
     def _show(self):
         self._cancel_hide()
+        self._ensure_top()
         if not self._visible:
             try:
                 self._reposition()

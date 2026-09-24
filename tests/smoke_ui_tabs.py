@@ -78,7 +78,7 @@ def main():
                  "start_minimized_switch", "adv_btn", "initial_prompt_box", "initial_prompt_chk",
                  "license_entry", "license_state_label", "history_listbox"]:
         check(f"existe {attr}", hasattr(ui, attr))
-    check("tecla legible", "Ctrl + Win + Espacio" in ui.hotkey_main_label.cget("text"), ui.hotkey_main_label.cget("text"))
+    check("tecla legible", "Ctrl + Win + Espacio" in ui.hotkey_key_label.cget("text"), ui.hotkey_key_label.cget("text"))
     check("micro no conectado marcado", "(no conectado)" in ui.mic_menu.get(), ui.mic_menu.get())
 
     print("── Avanzado plegado / desplegado ──")
