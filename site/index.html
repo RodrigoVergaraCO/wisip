@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Wisip · Dictado local para Windows</title>
+<meta name="description" content="Mantén una tecla, habla, suelta: Wisip escribe el texto en la app que tengas abierta. Español e inglés, 100 % en tu PC, sin internet ni suscripción.">
+<meta property="og:title" content="Wisip · Dictado local para Windows">
+<meta property="og:description" content="Dicta en cualquier app. Sin internet, sin suscripción. Español e inglés en tu propio PC.">
+<meta property="og:image" content="https://acropolifamily-web.github.io/wisip/logo.png">
+<meta property="og:type" content="website">
+<link rel="icon" href="icon.png" type="image/png">
+<style>
+  :root {
+    --bg: #0a0a0a; --surface: #151515; --surface-2: #1e1e1e; --border: #2a2a2a;
+    --text: #f5f1ea; --text-2: #b8b0a4; --muted: #7d766c;
+    --accent: #ffb340; --btn: #ff9f0a; --btn-hover: #e08900; --btn-text: #141414;
+    --accent-dim: #4a2d00;
+    --radius: 14px; --max: 1080px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+    font: 16px/1.6 -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+  a { color: var(--accent); text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  .wrap { max-width: var(--max); margin: 0 auto; padding: 0 20px; }
+  header { position: sticky; top: 0; background: rgba(10,10,10,.85); backdrop-filter: blur(10px);
+    border-bottom: 1px solid var(--border); z-index: 10; }
+  .nav { display: flex; align-items: center; justify-content: space-between; height: 64px; }
+  .nav img { height: 32px; }
+  .nav nav a { color: var(--text-2); margin-left: 22px; font-size: 14px; }
+  .nav nav a:hover { color: var(--text); text-decoration: none; }
+  .hero { padding: 84px 0 56px; text-align: center; }
+  .hero h1 { font-size: clamp(34px, 6vw, 58px); line-height: 1.08; margin: 0 0 18px; letter-spacing: -.02em; }
+  .hero h1 span { color: var(--accent); }
+  .hero p.lead { font-size: 19px; color: var(--text-2); max-width: 640px; margin: 0 auto 30px; }
+  .btn { display: inline-block; background: var(--btn); color: var(--btn-text); font-weight: 700;
+    padding: 15px 28px; border-radius: 12px; font-size: 17px; }
+  .btn:hover { background: var(--btn-hover); text-decoration: none; }
+  .btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--border); margin-left: 10px; }
+  .btn.ghost:hover { background: var(--surface-2); }
+  .meta { color: var(--muted); font-size: 13px; margin-top: 14px; }
+  .demo { margin: 44px auto 0; max-width: 720px; background: var(--surface); border: 1px solid var(--border);
+    border-radius: var(--radius); padding: 22px 24px; text-align: left; font-family: Consolas, "Cascadia Mono", monospace; font-size: 14px; }
+  .demo .k { display: inline-block; background: var(--surface-2); border: 1px solid var(--border);
+    border-bottom-width: 3px; border-radius: 6px; padding: 1px 8px; color: var(--accent); font-size: 12px; }
+  .demo .out { color: var(--text-2); margin-top: 10px; }
+  section { padding: 56px 0; border-top: 1px solid var(--border); }
+  h2 { font-size: 30px; margin: 0 0 8px; letter-spacing: -.01em; }
+  .sub { color: var(--text-2); margin: 0 0 30px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .step { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .step .n { width: 34px; height: 34px; border-radius: 50%; background: var(--accent-dim); color: var(--accent);
+    display: grid; place-items: center; font-weight: 800; margin-bottom: 12px; }
+  .step h3 { margin: 0 0 6px; font-size: 18px; }
+  .step p { margin: 0; color: var(--text-2); font-size: 15px; }
+  .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 22px; }
+  .card h3 { margin: 0 0 6px; font-size: 17px; }
+  .card p { margin: 0; color: var(--text-2); font-size: 15px; }
+  .price { display: grid; grid-template-columns: 1.1fr .9fr; gap: 24px; align-items: stretch; }
+  .price .card.main { border-color: var(--accent); }
+  .price .amount { font-size: 48px; font-weight: 800; letter-spacing: -.02em; margin: 6px 0; }
+  .price .amount small { font-size: 16px; color: var(--muted); font-weight: 500; }
+  .price ul { padding-left: 18px; color: var(--text-2); margin: 12px 0 20px; }
+  .price li { margin: 6px 0; }
+  .req { color: var(--text-2); font-size: 15px; }
+  .faq details { border-bottom: 1px solid var(--border); padding: 14px 0; }
+  .faq summary { cursor: pointer; font-weight: 600; list-style: none; }
+  .faq summary::-webkit-details-marker { display: none; }
+  .faq summary::before { content: "+"; color: var(--accent); display: inline-block; width: 22px; }
+  .faq details[open] summary::before { content: "–"; }
+  .faq p { color: var(--text-2); margin: 10px 0 0 22px; }
+  footer { border-top: 1px solid var(--border); padding: 30px 0 50px; color: var(--muted); font-size: 14px; }
+  footer a { color: var(--text-2); }
+  @media (max-width: 800px) {
+    .steps, .grid, .price { grid-template-columns: 1fr; }
+    .nav nav a:not(:last-child) { display: none; }
+    .btn.ghost { margin: 12px 0 0; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="wrap nav">
+    <a href="#"><img src="logo.png" alt="Wisip"></a>
+    <nav>
+      <a href="#como">Cómo funciona</a>
+      <a href="#precio">Precio</a>
+      <a href="#faq">Preguntas</a>
+      <a href="https://github.com/acropolifamily-web/wisip">GitHub</a>
+    </nav>
+  </div>
+</header>
+
+<main>
+  <div class="wrap hero">
+    <h1>Dicta en cualquier app.<br><span>Sin internet, sin suscripción.</span></h1>
+    <p class="lead">Mantén una tecla, habla, suelta. Wisip escribe el texto donde tengas el cursor:
+      ChatGPT, WhatsApp Web, correo, Word, tu editor. Español e inglés, procesados en tu propio PC.</p>
+    <a class="btn" href="https://github.com/acropolifamily-web/wisip/releases/latest">Descargar para Windows</a>
+    <a class="btn ghost" href="https://github.com/acropolifamily-web/wisip">Ver el código</a>
+    <div class="meta">Windows 10 / 11 · Instalador de 77 MB · 30 días gratis, sin tarjeta</div>
+
+    <div class="demo">
+      <div>Mantén <span class="k">Ctrl</span> + <span class="k">Win</span> + <span class="k">Espacio</span> y di:</div>
+      <div class="out">"Hola Andrea, te confirmo la reunión del jueves. Puedes entrar a wisip punto ai slash dashboard o escribirme a soporte arroba gmail punto com."</div>
+      <div style="margin-top:14px">Wisip escribe:</div>
+      <div class="out" style="color:var(--text)">Hola Andrea, te confirmo la reunión del jueves. Puedes entrar a wisip.ai/dashboard o escribirme a soporte@gmail.com.</div>
+    </div>
+  </div>
+
+  <section id="como">
+    <div class="wrap">
+      <h2>Cómo funciona</h2>
+      <p class="sub">Tres pasos. Nada que configurar después del primer arranque.</p>
+      <div class="steps">
+        <div class="step"><div class="n">1</div><h3>Pon el cursor</h3><p>Donde quieras escribir: un chat, un correo, un documento, tu editor de código.</p></div>
+        <div class="step"><div class="n">2</div><h3>Mantén la tecla y habla</h3><p>Con normalidad, en español, en inglés o mezclando los dos. Wisip transcribe mientras hablas.</p></div>
+        <div class="step"><div class="n">3</div><h3>Suelta</h3><p>El texto aparece escrito ahí mismo, con mayúsculas, puntuación, correos y direcciones web bien formados.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="funciones">
+    <div class="wrap">
+      <h2>Hecho para trabajar, no para demos</h2>
+      <p class="sub">Lo que diferencia a Wisip de dictar con el navegador o con el teléfono.</p>
+      <div class="grid">
+        <div class="card"><h3>100 % en tu PC</h3><p>Tu voz y tus textos no salen de tu equipo. Funciona sin internet después de la primera descarga.</p></div>
+        <div class="card"><h3>Español e inglés a la vez</h3><p>Una frase completa en inglés se queda en inglés. Los términos técnicos en inglés dentro del español se reconocen bien.</p></div>
+        <div class="card"><h3>Rápido con tu GPU</h3><p>Con una tarjeta NVIDIA, 30 segundos de voz se transcriben en medio segundo. Sin GPU también funciona, en CPU.</p></div>
+        <div class="card"><h3>Aprende tu vocabulario</h3><p>Nombres de clientes, marcas, herramientas, siglas. Los añades una vez y Wisip los escribe bien siempre.</p></div>
+        <div class="card"><h3>Correos y direcciones web</h3><p>"soporte arroba gmail punto com" sale como soporte@gmail.com. "wisip punto ai slash dashboard" sale como wisip.ai/dashboard.</p></div>
+        <div class="card"><h3>Cualquier aplicación</h3><p>Si tiene un cuadro de texto, sirve. Sin plugins ni extensiones. Un icono en la bandeja y una barra flotante discreta.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="precio">
+    <div class="wrap">
+      <h2>Un pago. Para siempre.</h2>
+      <p class="sub">Sin suscripción mensual. Sin cuenta. Sin límite de palabras.</p>
+      <div class="price">
+        <div class="card main">
+          <div style="color:var(--accent);font-weight:700;letter-spacing:.06em;font-size:13px">LICENCIA DE POR VIDA</div>
+          <div class="amount">US$ 29 <small>pago único</small></div>
+          <ul>
+            <li>30 días de prueba completa antes de pagar, sin tarjeta.</li>
+            <li>Un equipo por licencia. La pasas a otro PC cuando quieras.</li>
+            <li>Todas las actualizaciones incluidas.</li>
+            <li>Pago con tarjeta en tu idioma. Si prefieres pagar por Nequi o transferencia, escríbenos.</li>
+          </ul>
+          <a class="btn" href="#" id="buy">Comprar licencia</a>
+        </div>
+        <div class="card">
+          <h3>Requisitos</h3>
+          <p class="req">Windows 10 u 11 de 64 bits.<br>Micrófono (el del portátil sirve).<br>4 GB de RAM libres.<br>
+            Opcional: tarjeta NVIDIA para la máxima velocidad.<br><br>
+            La primera vez descarga el modelo de voz (0,5 a 1,6 GB) y, si tienes NVIDIA, el paquete de aceleración (1,2 GB). Ambos una sola vez.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="faq" class="faq">
+    <div class="wrap">
+      <h2>Preguntas frecuentes</h2>
+      <p class="sub"></p>
+      <details><summary>Windows me muestra un aviso azul al instalar. ¿Es normal?</summary>
+        <p>Sí. Windows avisa con cualquier programa nuevo que aún no tiene firma digital. Pulsa "Más información" y luego "Ejecutar de todas formas". El código de Wisip es público en GitHub y puedes revisarlo.</p></details>
+      <details><summary>¿Necesita internet?</summary>
+        <p>Solo la primera vez, para descargar el modelo de voz. Después funciona completamente sin conexión. Para activar la licencia también hace falta conexión un momento.</p></details>
+      <details><summary>¿Mi voz o mis textos salen de mi computador?</summary>
+        <p>No. El reconocimiento de voz corre en tu PC con un modelo local. Wisip no tiene cuenta, no envía audio ni texto a ningún servidor y no incluye telemetría.</p></details>
+      <details><summary>¿Funciona con tarjetas AMD o Intel?</summary>
+        <p>Sí, en modo CPU: tarda unos segundos más por dictado. La aceleración por GPU está disponible hoy para NVIDIA; el soporte para AMD e Intel está en desarrollo.</p></details>
+      <details><summary>¿Puedo usar la licencia en otro equipo?</summary>
+        <p>Sí. Desactívala desde la pestaña Licencia, o simplemente desinstala Wisip, y actívala en el nuevo PC con la misma clave.</p></details>
+      <details><summary>¿Qué pasa cuando terminan los 30 días?</summary>
+        <p>Wisip sigue abriendo y guarda tu configuración, pero deja de dictar hasta que actives una licencia. No perdemos nada tuyo: todo está en tu equipo.</p></details>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    Wisip · Código abierto bajo licencia GPL-3.0 · <a href="https://github.com/acropolifamily-web/wisip">GitHub</a> · <a href="https://github.com/acropolifamily-web/wisip/blob/main/CHANGELOG.md">Novedades</a>
+  </div>
+</footer>
+
+</body>
+</html>
