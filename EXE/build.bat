@@ -40,7 +40,7 @@ if errorlevel 1 (
     exit /b 1
 )
 
-echo [build] Sincronizando version (app\version.py -> installer.iss)...
+echo [build] Sincronizando version de appersion.py a installer.iss...
 python "%EXE_DIR%sync_version.py"
 if errorlevel 1 (
     echo [build] Error sincronizando la version
