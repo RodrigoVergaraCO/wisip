@@ -73,7 +73,7 @@ def main():
     print("── Widgets en su sitio ──")
     for attr in ["hotkey_main_label", "rebind_btn", "mic_menu", "language_menu", "mixed_lang_switch",
                  "toggle_btn", "transcription_box", "backend_label", "profile_menu", "model_menu",
-                 "perf_menu", "gpu_pack_btn", "paste_mode_menu", "theme_menu", "beep_chk",
+                 "perf_menu", "gpu_pack_btn", "paste_mode_menu", "_theme_chips", "beep_chk",
                  "replacements_chk", "hotkey_switch", "start_with_windows_switch",
                  "start_minimized_switch", "adv_btn", "initial_prompt_box", "initial_prompt_chk",
                  "license_entry", "license_state_label", "history_listbox"]:

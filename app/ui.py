@@ -668,153 +668,158 @@ class AppUI:
             self.update_banner.pack(fill="x", padx=4, pady=(2, 10), before=self.update_banner.master.winfo_children()[1])
 
     # ---------- Tab: Ajustes ----------
+    # Secciones con título (Reconocimiento · Comportamiento · Apariencia ·
+    # Actualizaciones · Avanzado) y selector de tema por fichas de color en vez
+    # de un desplegable (feedback del usuario 2026-09-24).
+    def _section(self, parent, title: str):
+        card = ctk.CTkFrame(
+            parent, fg_color=BG_SURFACE, border_color=BORDER, border_width=1, corner_radius=8,
+        )
+        card.pack(fill="x", padx=4, pady=(0, 12))
+        ctk.CTkLabel(
+            card, text=title, font=self._fnt(10, bold=True), text_color=PRIMARY, anchor="w",
+        ).pack(anchor="w", padx=14, pady=(10, 2))
+        body = ctk.CTkFrame(card, fg_color="transparent")
+        body.pack(fill="x", padx=10, pady=(0, 10))
+        body.grid_columnconfigure(0, weight=1, uniform="s")
+        body.grid_columnconfigure(1, weight=1, uniform="s")
+        return body
+
+    def _switch_row(self, parent, row, label, var, cmd, attr, hint: str = ""):
+        card = ctk.CTkFrame(
+            parent, fg_color=BG_SURFACE_LOW, border_color=BORDER, border_width=1, corner_radius=6,
+        )
+        card.grid(row=row, column=0, columnspan=2, sticky="ew", padx=4, pady=3)
+        left = ctk.CTkFrame(card, fg_color="transparent")
+        left.pack(side="left", fill="x", expand=True, padx=12, pady=8)
+        ctk.CTkLabel(
+            left, text=label, font=self._fnt(11, bold=True), text_color=TEXT, anchor="w",
+        ).pack(anchor="w")
+        if hint:
+            ctk.CTkLabel(
+                left, text=hint, font=self._fnt(10), text_color=TEXT_MUTED, anchor="w",
+            ).pack(anchor="w")
+        sw = ctk.CTkSwitch(
+            card, text="", variable=var, command=cmd,
+            progress_color=PRIMARY_BTN, button_color="#ffffff",
+            fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
+        )
+        sw.pack(side="right", padx=12, pady=8)
+        setattr(self, attr, sw)
+
     def _build_settings_tab(self, parent):
         scroll = ctk.CTkScrollableFrame(parent, fg_color=BG_BASE)
         scroll.pack(fill="both", expand=True)
 
-        cfg = ctk.CTkFrame(scroll, fg_color="transparent")
-        cfg.pack(fill="x", padx=4, pady=(2, 12))
-        cfg.grid_columnconfigure(0, weight=1, uniform="cfg")
-        cfg.grid_columnconfigure(1, weight=1, uniform="cfg")
-
-        # Perfil + descripción.
+        # ── Reconocimiento ──
+        rec = self._section(scroll, "RECONOCIMIENTO DE VOZ")
         profile_initial_key = self._resolved_profile_key()
         self._labeled_dropdown(
-            cfg, "PERFIL", row=0, col=0, colspan=2,
+            rec, "PERFIL", row=0, col=0, colspan=2,
             values=[config.QUALITY_PROFILE_LABELS[k] for k in config.QUALITY_PROFILE_KEYS],
             initial=config.QUALITY_PROFILE_LABELS[profile_initial_key],
             command=self._profile_changed,
             attr_name="profile_menu",
         )
         self.profile_desc_label = ctk.CTkLabel(
-            cfg,
-            text=config.QUALITY_PROFILE_DESCRIPTIONS.get(profile_initial_key, ""),
+            rec, text=config.QUALITY_PROFILE_DESCRIPTIONS.get(profile_initial_key, ""),
             font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
-        self.profile_desc_label.grid(
-            row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6)
-        )
+        self.profile_desc_label.grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6))
 
-        # Modelo + hint.
         model_initial = self._initial.get("model", config.DEFAULT_MODEL)
         self._labeled_dropdown(
-            cfg, "MODELO", row=2, col=0, colspan=2,
+            rec, "MODELO", row=2, col=0,
             values=config.AVAILABLE_MODELS,
             initial=model_initial,
             command=self._model_changed,
             attr_name="model_menu",
         )
-        self.model_hint_label = ctk.CTkLabel(
-            cfg, text=self._model_hint_text(model_initial),
-            font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
-        )
-        self.model_hint_label.grid(
-            row=3, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 0)
-        )
-
-        # Perfil de RENDIMIENTO (device/compute/batching). Distinto del de calidad.
         perf_key = self._resolved_perf_key()
         self._labeled_dropdown(
-            cfg, "RENDIMIENTO", row=4, col=0, colspan=2,
+            rec, "RENDIMIENTO", row=2, col=1,
             values=[config.PERF_PROFILE_LABELS[k] for k in config.PERF_PROFILE_KEYS],
             initial=config.PERF_PROFILE_LABELS[perf_key],
             command=self._perf_profile_changed,
             attr_name="perf_menu",
         )
-        self.perf_desc_label = ctk.CTkLabel(
-            cfg, text=config.PERF_PROFILE_DESCRIPTIONS.get(perf_key, ""),
+        self.model_hint_label = ctk.CTkLabel(
+            rec, text=self._model_hint_text(model_initial),
             font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
-        self.perf_desc_label.grid(
-            row=5, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 6)
+        self.model_hint_label.grid(row=3, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 0))
+        self.perf_desc_label = ctk.CTkLabel(
+            rec, text=config.PERF_PROFILE_DESCRIPTIONS.get(perf_key, ""),
+            font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
-
+        self.perf_desc_label.grid(row=4, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 4))
         # Botón de descarga del paquete NVIDIA: solo visible cuando hay GPU
         # NVIDIA y faltan las DLLs CUDA (lo decide el Controller).
         self.gpu_pack_btn = ctk.CTkButton(
-            cfg, text=self._gpu_pack_btn_text or "", height=30, corner_radius=8,
+            rec, text=self._gpu_pack_btn_text or "", height=30, corner_radius=8,
             fg_color=ACCENT_CONTAINER, hover_color=ACCENT_CONTAINER_HOVER,
             text_color=TEXT, font=self._fnt(12, bold=True),
             command=self._gpu_pack_clicked,
         )
-        self.gpu_pack_btn.grid(
-            row=6, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 6)
-        )
+        self.gpu_pack_btn.grid(row=5, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 4))
         if not self._gpu_pack_btn_text:
             self.gpu_pack_btn.grid_remove()
 
-        # Modo de pegado + tema.
+        # ── Comportamiento ──
+        beh = self._section(scroll, "COMPORTAMIENTO")
         self._labeled_dropdown(
-            cfg, "MODO", row=7, col=0,
+            beh, "MODO DE PEGADO", row=0, col=0, colspan=2,
             values=config.PASTE_MODES,
             initial=self._initial.get("paste_mode", config.PASTE_MODE_PASTE),
             command=self._paste_mode_changed,
             attr_name="paste_mode_menu",
         )
-        self._labeled_dropdown(
-            cfg, "TEMA", row=7, col=1,
-            values=[themes.THEME_LABELS[k] for k in themes.THEME_KEYS],
-            initial=themes.THEME_LABELS.get(self._theme_key, ""),
-            command=self._theme_changed,
-            attr_name="theme_menu",
-        )
-
-        # Toggles.
-        toggles = ctk.CTkFrame(scroll, fg_color="transparent")
-        toggles.pack(fill="x", padx=4, pady=(8, 12))
-        toggles.grid_columnconfigure(0, weight=1, uniform="t")
-        toggles.grid_columnconfigure(1, weight=1, uniform="t")
-
         self.beep_var = tk.BooleanVar(value=bool(self._initial.get("beep_enabled", True)))
-        self._toggle_card(
-            toggles, "BEEP AL GRABAR", self.beep_var, self._beep_changed,
-            attr_name="beep_chk", row=0, col=0,
-        )
-        self.replacements_var = tk.BooleanVar(
-            value=bool(self._initial.get("replacements_enabled", True))
-        )
-        self._toggle_card(
-            toggles, "REEMPLAZOS", self.replacements_var, self._replacements_changed,
-            attr_name="replacements_chk", row=0, col=1,
-        )
-
-        def _switch_card(row, label, var, cmd, attr):
-            card = ctk.CTkFrame(
-                toggles, fg_color=BG_SURFACE_LOW,
-                border_color=BORDER, border_width=1, corner_radius=4,
-            )
-            card.grid(row=row, column=0, columnspan=2, sticky="ew", padx=4, pady=4)
-            ctk.CTkLabel(
-                card, text=label,
-                font=self._fnt(10, bold=True), text_color=TEXT_VARIANT,
-            ).pack(side="left", padx=12, pady=10)
-            sw = ctk.CTkSwitch(
-                card, text="", variable=var, command=cmd,
-                progress_color=PRIMARY_BTN, button_color="#ffffff",
-                fg_color=BG_SURFACE_HIGH, border_color=BORDER, width=42,
-            )
-            sw.pack(side="right", padx=12, pady=8)
-            setattr(self, attr, sw)
-
+        self._switch_row(beh, 1, "Sonido al grabar", self.beep_var, self._beep_changed, "beep_chk",
+                         "Un beep corto al empezar y al terminar.")
+        self.replacements_var = tk.BooleanVar(value=bool(self._initial.get("replacements_enabled", True)))
+        self._switch_row(beh, 2, "Reemplazos de vocabulario", self.replacements_var, self._replacements_changed,
+                         "replacements_chk", "Aplica tus correcciones y las de marcas al texto.")
         self.hotkey_var = tk.BooleanVar(value=bool(self._initial.get("hotkey_enabled", True)))
-        _switch_card(1, "ATAJO ACTIVO", self.hotkey_var, self._hotkey_enabled_changed, "hotkey_switch")
-        self.start_with_windows_var = tk.BooleanVar(
-            value=bool(self._initial.get("start_with_windows", False))
-        )
-        _switch_card(2, "INICIAR CON WINDOWS", self.start_with_windows_var,
-                     self._start_with_windows_changed, "start_with_windows_switch")
-        self.start_minimized_var = tk.BooleanVar(
-            value=bool(self._initial.get("start_minimized", False))
-        )
-        _switch_card(3, "INICIAR MINIMIZADA (AL TRAY)", self.start_minimized_var,
-                     self._start_minimized_changed, "start_minimized_switch")
+        self._switch_row(beh, 3, "Atajo global activo", self.hotkey_var, self._hotkey_enabled_changed,
+                         "hotkey_switch", "Apágalo si la tecla te estorba en algún programa.")
+        self.start_with_windows_var = tk.BooleanVar(value=bool(self._initial.get("start_with_windows", False)))
+        self._switch_row(beh, 4, "Iniciar con Windows", self.start_with_windows_var,
+                         self._start_with_windows_changed, "start_with_windows_switch")
+        self.start_minimized_var = tk.BooleanVar(value=bool(self._initial.get("start_minimized", False)))
+        self._switch_row(beh, 5, "Iniciar minimizada en la bandeja", self.start_minimized_var,
+                         self._start_minimized_changed, "start_minimized_switch")
 
-        # Actualizaciones.
+        # ── Apariencia: fichas de color ──
+        app_sec = self._section(scroll, "APARIENCIA")
+        chips = ctk.CTkFrame(app_sec, fg_color="transparent")
+        chips.grid(row=0, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 4))
+        self._theme_chips = {}
+        for i, key in enumerate(themes.THEME_KEYS):
+            pal = themes.get_palette(key)
+            selected = key == self._theme_key
+            chip = ctk.CTkButton(
+                chips, text=themes.THEME_LABELS[key], width=150, height=44, corner_radius=10,
+                fg_color=pal["BG_SURFACE_HIGH"], hover_color=pal["ACCENT_CONTAINER"],
+                text_color=pal["PRIMARY"], font=self._fnt(11, bold=True),
+                border_width=2, border_color=pal["PRIMARY"] if selected else pal["BORDER"],
+                command=lambda k=key: self._theme_changed(themes.THEME_LABELS[k]),
+            )
+            chip.pack(side="left", padx=(0, 8))
+            self._theme_chips[key] = chip
+        ctk.CTkLabel(
+            app_sec, text="El cambio se aplica al instante y se guarda.",
+            font=self._fnt(10), text_color=TEXT_MUTED, anchor="w",
+        ).grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(0, 4))
+
+        # ── Actualizaciones ──
+        upd_sec = self._section(scroll, "ACTUALIZACIONES")
         self.auto_update_var = tk.BooleanVar(value=bool(self._initial.get("auto_update_install", True)))
-        _switch_card(4, "ACTUALIZAR AUTOMÁTICAMENTE", self.auto_update_var,
-                     self._auto_update_changed, "auto_update_switch")
-        upd = ctk.CTkFrame(toggles, fg_color="transparent")
-        upd.grid(row=5, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 4))
+        self._switch_row(upd_sec, 0, "Actualizar automáticamente", self.auto_update_var,
+                         self._auto_update_changed, "auto_update_switch",
+                         "Descarga e instala las versiones nuevas cuando no estés dictando.")
+        upd = ctk.CTkFrame(upd_sec, fg_color="transparent")
+        upd.grid(row=1, column=0, columnspan=2, sticky="ew", padx=4, pady=(4, 2))
         self.update_status_label = ctk.CTkLabel(
             upd, text=self._last_update_status, font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
         )
@@ -825,8 +830,7 @@ class AppUI:
             border_width=1, text_color=TEXT, font=self._fnt(10, bold=True), height=28, corner_radius=4,
         ).pack(side="right")
 
-        # Ajustes avanzados, plegados: el prompt inicial confunde a quien no
-        # sabe qué es Whisper (feedback del usuario, 2026-09-23).
+        # ── Avanzado (plegado) ──
         self._adv_open = False
         self.adv_btn = ctk.CTkButton(
             scroll, text="▸  AJUSTES AVANZADOS (prompt inicial de Whisper)",
@@ -836,13 +840,11 @@ class AppUI:
         )
         self.adv_btn.pack(fill="x", padx=4, pady=(0, 6))
 
-        # Prompt editor (oculto hasta abrir AVANZADO).
         prompt_card = ctk.CTkFrame(
             scroll, fg_color=BG_SURFACE,
             border_color=BORDER, border_width=1, corner_radius=6,
         )
         self._prompt_card = prompt_card
-
         ph = ctk.CTkFrame(prompt_card, fg_color="transparent")
         ph.pack(fill="x", padx=12, pady=(10, 4))
         ctk.CTkLabel(
@@ -861,7 +863,6 @@ class AppUI:
             font=self._fnt(10, bold=True),
         )
         self.initial_prompt_chk.pack(side="left", padx=(12, 0))
-
         ctk.CTkButton(
             ph, text="GUARDAR PROMPT",
             command=self._initial_prompt_save_clicked,
@@ -870,7 +871,6 @@ class AppUI:
             font=self._fnt(10, bold=True), width=140, height=26,
             corner_radius=4,
         ).pack(side="right")
-
         self.initial_prompt_box = ctk.CTkTextbox(
             prompt_card, height=80, wrap="word",
             fg_color=BG_INPUT, text_color=TEXT,
