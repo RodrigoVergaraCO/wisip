@@ -1,0 +1,22 @@
+faster-whisper>=1.0.0
+sounddevice>=0.4.6
+numpy>=1.24.0
+keyboard>=0.13.5
+pyperclip>=1.8.2
+pyautogui>=0.9.54
+customtkinter>=5.2.0
+pystray>=0.19.5
+pillow>=10.0.0
+# Pestaña Vocabulario: frecuencias de corpus ES/EN para detectar palabras
+# inventadas por Whisper al minar sugerencias del registro de dictados.
+wordfreq>=3.0.0
+
+# ─── Aceleración por GPU (OPCIONAL, solo NVIDIA) ───────────────────────────
+# Wisip funciona 100% en CPU sin esto. Para usar GPU (perfil "Rápido seguro" o
+# "Máxima velocidad" con device auto/cuda) instala el runtime CUDA 12:
+#   pip install nvidia-cublas-cu12 nvidia-cudnn-cu12 nvidia-cuda-runtime-cu12
+# Solo sirve con tarjetas NVIDIA. AMD/Intel/Apple/sin GPU → CPU automático.
+# No incluir en el build CPU universal (añade ~1.3 GB). Ver README.
+
+# Solo necesario para construir el .exe (no para correr la app):
+# pyinstaller>=6.0.0

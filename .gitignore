@@ -1,0 +1,40 @@
+# ── Entornos virtuales ──
+.venv/
+.venv-cpu/
+venv/
+
+# ── Python ──
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ── Salidas de build (PyInstaller / Inno Setup) ──
+EXE/build/
+EXE/build-cpu/
+EXE/dist/
+EXE/dist-cpu/
+EXE/Wisip/
+EXE/installer/
+*.spec.bak
+
+# ── Datos locales del usuario (nunca se versionan) ──
+app_settings.json
+personal_replacements.json
+personal_emails.json
+history.json
+logs/
+*.jsonl
+*.wav
+
+# ── Borradores y assets fuente pesados ──
+ChatGPT Image*.png
+tests/report_*.json
+
+# ── Editor / SO ──
+.vscode/
+.idea/
+.claude/
+Thumbs.db
+desktop.ini
+.DS_Store

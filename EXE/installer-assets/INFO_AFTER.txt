@@ -1,0 +1,75 @@
+¡WISIP ESTÁ INSTALADO! 🎙
+
+
+CÓMO EMPEZAR A USARLO
+
+  1. Abre Wisip desde el Menú Inicio (o desde el acceso directo del
+     escritorio si lo creaste).
+
+  2. Acepta el aviso de UAC. Es necesario para el atajo global de
+     teclado y el pegado automático.
+
+  3. Espera unos segundos. La primera vez Wisip descarga el modelo de
+     voz (~145 MB el perfil "Rápido", hasta ~1.5 GB el "Preciso"). En
+     los logs verás "modelo listo".
+
+  4. Haz clic en el campo donde quieras escribir (ChatGPT, WhatsApp,
+     VS Code, Notion, lo que sea).
+
+  5. Mantén la tecla "|" (antes del 1 en el teclado en español) →
+     habla → suéltala. Wisip transcribirá lo que dijiste y lo pegará
+     directamente en el campo activo.
+
+
+CONFIGURACIÓN RÁPIDA
+
+  - Cambiar el atajo de grabación: haz clic en el icono de la mano (👆)
+    en la ventana principal de Wisip y pulsa la nueva combinación.
+
+  - Cambiar el perfil de calidad: usa el selector "PERFIL" (Rápido,
+    Balanceado, Preciso). Balanceado es buen punto de partida.
+
+  - Cambiar el idioma: usa el selector "IDIOMA" (Español, Inglés, Auto).
+    Mantén "IDIOMA MIXTO" activo si dictas español con términos técnicos
+    en inglés (webhook, API, MongoDB, etc.).
+
+
+ARCHIVOS DE CONFIGURACIÓN
+
+  Wisip guarda tu configuración en:
+    %APPDATA%\local-voice-typer\
+
+  Allí encontrarás:
+    - app_settings.json    → preferencias generales
+    - replacements.json    → diccionario de correcciones automáticas
+    - history.json         → últimas 10 transcripciones
+
+
+BANDEJA DEL SISTEMA
+
+  Cuando cierras la ventana (X) o pulsas el botón "minimizar" (—),
+  Wisip se oculta en la bandeja del sistema (esquina inferior derecha,
+  bajo el icono de la flecha).
+
+  - Doble clic sobre el icono lima → muestra la ventana.
+  - Clic derecho → menú con "Mostrar Wisip" / "Ocultar ventana" /
+    "Cerrar Wisip".
+
+  Solo "Cerrar Wisip" termina la app de verdad.
+
+
+¿PROBLEMAS?
+
+  - Si el atajo no responde, cierra Wisip, abre el menú inicio, haz
+    clic derecho sobre Wisip y elige "Ejecutar como administrador".
+
+  - Si Windows muestra el icono viejo de Python o uno gris en algún
+    lugar, reinicia el Explorador:
+        Ctrl+Shift+Esc → busca "Explorador de Windows" →
+        clic derecho → Reiniciar.
+
+  - Si tu antivirus bloquea Wisip.exe, es un falso positivo común con
+    apps empacadas con PyInstaller. Agrega una excepción.
+
+
+¡Disfruta dictando! 🚀

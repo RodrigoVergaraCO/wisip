@@ -1,0 +1,48 @@
+BIENVENIDO AL INSTALADOR DE WISIP
+
+
+¿QUÉ ES WISIP?
+
+  Wisip es una aplicación de escritorio para Windows que escucha tu
+  micrófono, transcribe lo que dices localmente (sin internet) y pega el
+  texto en la aplicación activa: ChatGPT, WhatsApp Web, VS Code, Notion,
+  correos, formularios, lo que sea.
+
+  Funciona 100% offline. No hay claves de API, no hay suscripciones, no
+  hay coste recurrente. El reconocimiento corre en tu CPU con
+  faster-whisper (la implementación local de Whisper de OpenAI).
+
+
+ANTES DE INSTALAR, REVISA QUE:
+
+  - Tu Windows sea 10 o 11.
+  - Tengas un micrófono conectado y configurado como entrada
+    predeterminada en "Configuración → Sistema → Sonido".
+  - Tengas al menos 1 GB de espacio libre (el modelo de transcripción se
+    descarga la primera vez que abras la app, hasta ~1.5 GB en el perfil
+    "Preciso").
+  - Aceptes el aviso de UAC (Control de Cuentas de Usuario) al iniciar la
+    aplicación. Esto es necesario para registrar el atajo global de
+    teclado y para que el pegado funcione en todas las aplicaciones.
+
+
+CÓMO FUNCIONA EL ATAJO
+
+  Por defecto, Wisip usa la tecla "|" (la que está antes del 1 en el
+  teclado en español) como atajo de dictado. Mantienes la tecla → grabas;
+  la sueltas → transcribe y pega.
+
+  Puedes cambiar el atajo desde la propia aplicación haciendo clic en
+  el icono de la mano que aparece junto al texto "Mantén ... para grabar".
+
+
+QUÉ SE INSTALA
+
+  - El ejecutable Wisip.exe y sus dependencias (faster-whisper,
+    customtkinter, etc.).
+  - Acceso directo en el Menú Inicio.
+  - Opcionalmente, acceso directo en el Escritorio.
+  - Un uninstaller registrado en "Programas y características".
+
+
+Continúa para revisar el acuerdo de licencia.

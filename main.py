@@ -1,0 +1,1100 @@
+import ctypes
+import os
+import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
+
+def _reexec_with_venv_if_needed():
+    """Relanza main.py con el pythonw del .venv si se abrió con otro Python.
+
+    Doble clic en main.py usa el Python del sistema: sin las libs CUDA del
+    venv, faster-whisper cae a CPU int8 y cada dictado tarda ~15s (incidentes
+    2026-07-16 y 2026-07-20). WISIP_NO_VENV_REEXEC=1 desactiva el guard.
+    """
+    if getattr(sys, "frozen", False) or sys.prefix != sys.base_prefix:
+        return  # empaquetado, o ya corremos dentro de un venv
+    if os.environ.get("WISIP_NO_VENV_REEXEC"):
+        return
+    scripts = Path(__file__).resolve().parent / ".venv" / "Scripts"
+    interpreter = scripts / "pythonw.exe"
+    if not interpreter.exists():
+        interpreter = scripts / "python.exe"
+        if not interpreter.exists():
+            return
+    import subprocess
+    subprocess.Popen(
+        [str(interpreter), str(Path(__file__).resolve()), *sys.argv[1:]],
+        cwd=str(Path(__file__).resolve().parent),
+    )
+    sys.exit(0)
+
+
+_reexec_with_venv_if_needed()
+
+from app import config
+
+
+def _set_app_user_model_id():
+    """Asigna AppUserModelID antes de crear cualquier ventana Tk para que la
+    barra de tareas de Windows agrupe la app como 'Wisip' (con su icono) y no
+    como 'Python'."""
+    if sys.platform != "win32":
+        return
+    try:
+        ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(
+            config.APP_USER_MODEL_ID
+        )
+    except Exception:
+        pass
+
+
+_set_app_user_model_id()
+from app import autostart
+from app import error_log
+from app import vocab
+from app.audio_recorder import AudioRecorder, is_digital_silence
+from app.beeps import Beeps
+from app.dictation_log import DictationLog
+from app.floating_bar import FloatingBar
+from app.history import History
+from app.hotkeys import HotkeyManager
+from app.incremental import IncrementalSession
+from app.postprocessor import normalize_emails_urls_symbols
+from app.replacements import Replacements
+from app.settings import Settings
+from app.single_instance import enforce_single_instance
+from app.transcriber import Transcriber, cuda_available
+from app.tray import TrayIcon
+from app.typer import clean_text, copy_only, paste_text
+from app.ui import AppUI
+
+
+class Controller:
+    """Orquesta settings, UI, tray, hotkey push-to-talk, grabación,
+    transcripción, reemplazos, historial, pegado/copia y barra flotante."""
+
+    def __init__(self):
+        self._pending_logs: list = []
+
+        def buf_log(msg):
+            self._pending_logs.append(msg)
+
+        # Configuración y datos persistentes
+        self.settings = Settings(on_log=buf_log)
+        self.replacements = Replacements(
+            on_log=buf_log,
+            tech_mode_getter=lambda: bool(self.settings.get("tech_mode")),
+        )
+        self.history = History(on_log=buf_log)
+        self.dictation_log = DictationLog(on_log=buf_log)
+        self.beeps = Beeps(enabled=bool(self.settings.get("beep_enabled")), on_log=buf_log)
+
+        # UI principal
+        self.ui = AppUI(
+            on_model_change=self._on_model_change,
+            on_language_change=self._on_language_change,
+            on_toggle_button=self._toggle,
+            on_paste_mode_change=self._on_paste_mode_change,
+            on_beep_toggle=self._on_beep_toggle,
+            on_replacements_toggle=self._on_replacements_toggle,
+            on_hotkey_toggle=self._on_hotkey_toggle,
+            on_history_copy=self._on_history_copy,
+            on_history_paste=self._on_history_paste,
+            on_history_clear=self._on_history_clear,
+            on_initial_prompt_toggle=self._on_initial_prompt_toggle,
+            on_initial_prompt_save=self._on_initial_prompt_save,
+            on_quality_profile_change=self._on_quality_profile_change,
+            on_mixed_language_toggle=self._on_mixed_language_toggle,
+            on_hotkey_rebind_request=self._on_hotkey_rebind_request,
+            on_start_with_windows_toggle=self._on_start_with_windows_toggle,
+            on_start_minimized_toggle=self._on_start_minimized_toggle,
+            on_perf_profile_change=self._on_perf_profile_change,
+            on_close_request=self._on_close_request,
+            on_theme_change=self._on_theme_change,
+            on_vocab_hotwords_save=self._on_vocab_hotwords_save,
+            on_vocab_tokens=self._on_vocab_tokens,
+            on_vocab_list=self._on_vocab_list,
+            on_vocab_add=self._on_vocab_add,
+            on_vocab_remove=self._on_vocab_remove,
+            on_vocab_analyze=self._on_vocab_analyze,
+            on_vocab_ignore=self._on_vocab_ignore,
+            initial_settings=self.settings.all(),
+            hotkey_label=self.settings.get("hotkey"),
+        )
+        # Volcar logs pendientes ahora que la UI existe
+        for m in self._pending_logs:
+            self._log(m)
+        self._pending_logs = None
+        self.settings.on_log = self._log
+        self.replacements.on_log = self._log
+        self.history.on_log = self._log
+        self.dictation_log.on_log = self._log
+        self.beeps.on_log = self._log
+
+        # Instancia única: cierra cualquier Wisip previo (dos instancias pelean
+        # por el hotkey y el micrófono) y vigila para cerrarse cuando el usuario
+        # abra uno nuevo. Antes de crear recorder/hotkeys para arrancar limpio.
+        enforce_single_instance(on_quit=self._tray_quit, on_log=self._log)
+
+        # Componentes runtime
+        self.recorder = AudioRecorder(on_log=self._log)
+        self.transcriber = Transcriber(on_log=self._log)
+        self.hotkeys = HotkeyManager(
+            on_press=self._hotkey_press,
+            on_release=self._hotkey_release,
+            on_log=self._log,
+            hotkey=self.settings.get("hotkey"),
+            is_enabled=lambda: bool(self.settings.get("hotkey_enabled")),
+        )
+        self.floating_bar = FloatingBar(
+            parent_root=self.ui.root,
+            hotkey_label=self.settings.get("hotkey"),
+            get_level=self.recorder.get_level,
+            on_log=self._log,
+        )
+        self.tray = TrayIcon(
+            on_show=self._tray_show,
+            on_hide=self._tray_hide,
+            on_quit=self._tray_quit,
+            on_log=self._log,
+        )
+
+        self._state = "idle"
+        self._state_lock = threading.Lock()
+        self._rebinding = False
+        self._recording_source: str | None = None  # "hotkey" o "button"
+        self._inc_session: IncrementalSession | None = None
+        self._model_ready = threading.Event()
+        self._quitting = False
+        # Sincroniza press → release para evitar race en taps muy rápidos.
+        self._press_done = threading.Event()
+        self._press_done.set()
+        # CapsLock state save/restore
+        self._capslock_was_on: bool | None = None
+
+        self.ui.set_history(self.history.items())
+        # Sube a GPU automáticamente (una vez) si hay tarjeta NVIDIA usable y el
+        # usuario sigue en el perfil por defecto antiguo. Debe correr ANTES del
+        # preload para que el modelo cargue ya en el backend rápido.
+        self._autotune_perf_profile()
+        threading.Thread(target=self._preload_default_model, daemon=True).start()
+
+        try:
+            self.hotkeys.start()
+        except Exception:
+            self._log("[hotkey] No se pudo registrar el hotkey. Prueba cambiar el "
+                      "atajo (botón 👆) o ejecutar como administrador si quieres "
+                      "controlar apps elevadas.")
+
+        self.tray.start()
+
+        # Reconcilia el registro de autostart con la preferencia guardada, por si
+        # el usuario movió/reinstaló el .exe (la ruta del Run apuntaría a algo viejo).
+        self._sync_autostart_on_launch()
+
+        if self.settings.get("start_minimized"):
+            self.ui.hide_to_tray()
+            self._log("[app] arranque minimizado al tray")
+
+    # ---------------- logging / estado ----------------
+    def _log(self, msg: str):
+        ts = datetime.now().strftime("%H:%M:%S")
+        self.ui.log(f"{ts}  {msg}")
+
+    def _set_state(self, state: str):
+        self._state = state
+        self.ui.set_status(state)
+        self._update_floating_bar(state)
+
+    def _update_floating_bar(self, state: str):
+        # `loading` no toca la barra flotante (sólo se ve en la ventana principal).
+        if state == "recording":
+            self.floating_bar.show_recording()
+        elif state in ("transcribing", "processing"):
+            self.floating_bar.show_transcribing()
+        elif state == "pasting":
+            self.floating_bar.show_pasting()
+        elif state == "idle":
+            self.floating_bar.show_ready_and_hide()
+        elif state == "error":
+            self.floating_bar.show_error_and_hide("Error")
+
+    # ---------------- modelo ----------------
+    def _perf_params(self) -> dict:
+        """Resuelve device/compute/batching según el perfil de rendimiento.
+        Si el perfil es 'Personalizado', usa device/compute_type crudos de
+        settings. cpu_threads/num_workers/enable_gpu siempre vienen de settings."""
+        prof = self.settings.get("performance_profile")
+        p = config.PERF_PROFILES.get(prof)
+        if p is None:  # custom
+            device = self.settings.get("device")
+            compute = self.settings.get("compute_type")
+            batched = bool(self.settings.get("batched"))
+            batch_size = int(self.settings.get("batch_size"))
+        else:
+            device = p["device"]
+            compute = p["compute_type"]
+            batched = p["batched"]
+            batch_size = int(p["batch_size"])
+        return {
+            "device": device,
+            "compute_type": compute,
+            "cpu_threads": int(self.settings.get("cpu_threads")),
+            "num_workers": int(self.settings.get("num_workers")),
+            "enable_gpu": bool(self.settings.get("enable_gpu_if_available")),
+            "batched": batched,
+            "batch_size": batch_size,
+        }
+
+    def _load_model_now(self, model_name: str, prev_state: str | None = None):
+        pp = self._perf_params()
+        self._set_state("loading")
+        try:
+            self.transcriber.load(
+                model_name,
+                device=pp["device"],
+                compute_type=pp["compute_type"],
+                cpu_threads=pp["cpu_threads"],
+                num_workers=pp["num_workers"],
+                enable_gpu=pp["enable_gpu"],
+            )
+            self.ui.set_backend(self.transcriber.backend_str)
+            self._model_ready.set()
+            keep = prev_state if prev_state == "recording" else "idle"
+            self._set_state(keep)
+        except Exception as e:
+            self._log(f"[whisper] error cargando '{model_name}': {e}")
+            error_log.log_error(f"error cargando modelo '{model_name}'", e)
+            self._set_state("error")
+            self.beeps.error()
+            # Sin diálogo, un fallo aquí deja la app en "ERROR" sin explicación
+            # (la 1ª descarga del modelo necesita internet; el AV puede bloquear).
+            error_log.show_error_dialog_async(
+                "Wisip — no se pudo cargar el modelo",
+                f"No se pudo cargar el modelo '{model_name}'.\n\n"
+                "Causas típicas:\n"
+                "• Primera vez con este modelo: se necesita internet para "
+                "descargarlo.\n"
+                "• Antivirus bloqueando archivos de Wisip.\n"
+                "• Disco lleno.\n\n"
+                f"Detalle: {type(e).__name__}: {e}\n\n"
+                f"Log completo: {config.ERROR_LOG_PATH}",
+            )
+
+    def _autotune_perf_profile(self):
+        """Migraciones únicas cuando hay GPU NVIDIA usable. No pisan elecciones
+        deliberadas: solo migran desde defaults y una sola vez (banderas
+        'perf_autotuned' / 'model_autotuned').
+
+        1. Perfil de rendimiento: del antiguo default 'Calidad actual' (CPU
+           secuencial) a 'Rápido seguro' (GPU float16 + batched).
+        2. Modelo: de los modelos CPU (tiny/base/small/medium) al perfil de
+           calidad 'Preciso GPU' (large-v3-turbo float16), que en GPU es a la
+           vez el MÁS preciso y más rápido que small.
+        """
+        gpu = False
+        try:
+            gpu = cuda_available()
+        except Exception:
+            pass
+
+        # ── 1. Perfil de rendimiento ──
+        try:
+            if not self.settings.get("perf_autotuned"):
+                if (self.settings.get("performance_profile") == config.PERF_PROFILE_QUALITY
+                        and gpu):
+                    self.settings.set("performance_profile", config.PERF_PROFILE_FAST_SAFE)
+                    self.ui.set_perf_profile(config.PERF_PROFILE_FAST_SAFE)
+                    self._log("[perf] GPU NVIDIA detectada → perfil 'Rápido seguro' "
+                              "activado automáticamente (misma calidad, mucho más "
+                              "rápido). Puedes cambiarlo en RENDIMIENTO.")
+        except Exception as e:
+            self._log(f"[perf] autotune de rendimiento falló: {e}")
+        finally:
+            try:
+                self.settings.set("perf_autotuned", True)
+            except Exception:
+                pass
+
+        # ── 2. Modelo recomendado para GPU ──
+        try:
+            if self.settings.get("model_autotuned"):
+                return
+            eligible_profiles = (
+                config.QUALITY_PROFILE_FAST,
+                config.QUALITY_PROFILE_BALANCED,
+                config.QUALITY_PROFILE_ACCURATE,
+            )
+            if (gpu
+                    and self.settings.get("model") != config.GPU_RECOMMENDED_MODEL
+                    and self.settings.get("quality_profile") in eligible_profiles):
+                profile = config.QUALITY_PROFILES[config.QUALITY_PROFILE_ACCURATE_GPU]
+                self.settings.set("quality_profile", config.QUALITY_PROFILE_ACCURATE_GPU)
+                for k, v in profile.items():
+                    self.settings.set(k, v)
+                self.ui.set_quality_profile(config.QUALITY_PROFILE_ACCURATE_GPU)
+                self.ui.set_model(profile["model"])
+                self._log(f"[perf] GPU NVIDIA detectada → perfil 'Preciso GPU' "
+                          f"({config.GPU_RECOMMENDED_MODEL} float16): máxima "
+                          f"precisión y más rápido que 'small'. La primera vez "
+                          f"descarga ~1.6GB. Puedes cambiarlo en PERFIL.")
+        except Exception as e:
+            self._log(f"[perf] autotune de modelo falló: {e}")
+        finally:
+            try:
+                self.settings.set("model_autotuned", True)
+            except Exception:
+                pass
+
+    def _preload_default_model(self):
+        self._load_model_now(self.settings.get("model"))
+
+    def _on_model_change(self, name: str):
+        self.settings.set("model", name)
+        self._log(f"[ui] cambio de modelo → '{name}' (perfil → Personalizado)")
+        # Cualquier cambio manual de modelo rompe el perfil predefinido.
+        self.settings.set("quality_profile", config.QUALITY_PROFILE_CUSTOM)
+        self.ui.set_quality_profile(config.QUALITY_PROFILE_CUSTOM)
+        self._model_ready.clear()
+        threading.Thread(
+            target=self._reload_model,
+            args=(name, self.settings.get("compute_type")),
+            daemon=True,
+        ).start()
+
+    def _reload_model(self, name: str, compute_type: str | None = None):
+        # compute_type ya no se usa aquí: lo decide el perfil de rendimiento
+        # (_perf_params). Se mantiene el parámetro por compatibilidad de llamadas.
+        self._load_model_now(name, prev_state=self._state)
+
+    # ---------------- benchmark / tiempo transcurrido ----------------
+    def _log_benchmark(self, audio_s: float, replacements_s: float, pp: dict,
+                       trans_s_override: float | None = None):
+        # En modo incremental last_transcribe_seconds solo refleja el último
+        # tramo; el total real llega por trans_s_override.
+        if trans_s_override is not None:
+            trans_s = trans_s_override
+        else:
+            trans_s = float(getattr(self.transcriber, "last_transcribe_seconds", 0.0) or 0.0)
+        ratio = (trans_s / audio_s) if audio_s > 0 else 0.0
+        self._log(
+            f"[bench] audio={audio_s:.1f}s · transcripcion={trans_s:.2f}s · "
+            f"replacements={replacements_s * 1000:.0f}ms · ratio={ratio:.2f}x · "
+            f"modelo={self.settings.get('model')} · backend={self.transcriber.backend_str} · "
+            f"beam={self.settings.get('beam_size')} · batched={'on' if pp['batched'] else 'off'}"
+        )
+
+    def _start_elapsed_timer(self):
+        self._elapsed_stop = threading.Event()
+        self._elapsed_t0 = time.perf_counter()
+
+        def _tick():
+            while not self._elapsed_stop.wait(0.5):
+                secs = time.perf_counter() - self._elapsed_t0
+                try:
+                    self.ui.set_transcribing_elapsed(secs)
+                except Exception:
+                    pass
+
+        threading.Thread(target=_tick, daemon=True).start()
+
+    def _stop_elapsed_timer(self):
+        ev = getattr(self, "_elapsed_stop", None)
+        if ev is not None:
+            ev.set()
+
+    def _on_perf_profile_change(self, key: str):
+        if key not in config.PERF_PROFILE_KEYS:
+            return
+        self.settings.set("performance_profile", key)
+        label = config.PERF_PROFILE_LABELS.get(key, key)
+        self._log(f"[perf] perfil de rendimiento → '{label}'")
+        if key == config.PERF_PROFILE_MAX_SPEED and not cuda_available():
+            self._log("[perf] aviso: no hay GPU NVIDIA usable; 'Máxima velocidad' "
+                      "correrá en CPU (batched). Para GPU instala las libs CUDA.")
+
+        # Solo recargamos si cambia el backend real (device/compute). El flag
+        # 'batched' y 'batch_size' se aplican en transcribe(), sin recargar.
+        pp = self._perf_params()
+        device, compute = self.transcriber.resolve_backend(
+            pp["device"], pp["compute_type"], pp["enable_gpu"]
+        )
+        if self.transcriber.is_loaded_as(device, compute):
+            self._log(f"[perf] backend sin cambios ({self.transcriber.backend_str}); "
+                      f"solo cambia batched. Modelo reutilizado.")
+            return
+        self._model_ready.clear()
+        threading.Thread(
+            target=self._reload_model, args=(self.settings.get("model"),), daemon=True
+        ).start()
+
+    # ---------------- opciones de UI ----------------
+    def _on_language_change(self, code: str):
+        if code not in config.LANGUAGE_CODES:
+            return
+        self.settings.set("language", code)
+        self._log(f"[ui] idioma → {code}")
+
+    def _on_paste_mode_change(self, mode: str):
+        if mode not in config.PASTE_MODES:
+            return
+        self.settings.set("paste_mode", mode)
+        self.settings.set("auto_paste_enabled", mode == config.PASTE_MODE_PASTE)
+
+    def _on_beep_toggle(self, enabled: bool):
+        self.settings.set("beep_enabled", enabled)
+        self.beeps.set_enabled(enabled)
+
+    def _on_replacements_toggle(self, enabled: bool):
+        self.settings.set("replacements_enabled", enabled)
+
+    def _on_mixed_language_toggle(self, enabled: bool):
+        self.settings.set("mixed_language_mode", enabled)
+        self._log(
+            f"[ui] idioma mixto {'ACTIVADO' if enabled else 'DESACTIVADO'} "
+            f"({'es se trata como auto' if enabled else 'es se respeta tal cual'})"
+        )
+
+    # ---------------- rebind del hotkey ----------------
+    def _on_hotkey_rebind_request(self):
+        if self._rebinding:
+            return
+        self._rebinding = True
+        threading.Thread(target=self._do_rebind, daemon=True).start()
+
+    def _do_rebind(self):
+        try:
+            self.ui.set_rebind_mode(True)
+            self._log("[hotkey] esperando nueva combinación... (pulsa la tecla; Esc cancela)")
+            # Para a que el hook actual no fire mientras captura la nueva tecla.
+            try:
+                self.hotkeys.stop()
+            except Exception:
+                pass
+
+            new_hk = None
+            try:
+                import keyboard as _kb
+                new_hk = _kb.read_hotkey(suppress=False)
+            except Exception as e:
+                self._log(f"[hotkey] error leyendo nueva tecla: {e}")
+
+            cancelled = (
+                not new_hk
+                or new_hk.lower() in ("esc", "escape")
+            )
+
+            if cancelled:
+                self._log("[hotkey] rebind cancelado, restaurando hotkey anterior")
+                try:
+                    self.hotkeys.start()
+                except Exception as e:
+                    self._log(f"[hotkey] no pude restaurar el hook: {e}")
+                return
+
+            self.settings.set("hotkey", new_hk)
+            try:
+                self.hotkeys.rebind(new_hk)
+            except Exception as e:
+                self._log(f"[hotkey] error registrando '{new_hk}': {e}. "
+                          f"Edita 'hotkey' en app_settings.json y reinicia.")
+                return
+
+            self.ui.update_hotkey_label(new_hk)
+            try:
+                self.floating_bar.set_hotkey_label(new_hk)
+            except Exception:
+                pass
+            self._log(
+                f"[hotkey] nueva tecla activa: {new_hk.upper()} "
+                f"(la tecla queda suprimida del sistema mientras esté pulsada)"
+            )
+        finally:
+            self.ui.set_rebind_mode(False)
+            self._rebinding = False
+
+    def _on_initial_prompt_toggle(self, enabled: bool):
+        self.settings.set("initial_prompt_enabled", enabled)
+        self._log(f"[ui] prompt inicial {'ACTIVADO' if enabled else 'DESACTIVADO'}")
+
+    def _on_initial_prompt_save(self, text: str):
+        self.settings.set("initial_prompt", text)
+        preview = text if len(text) <= 60 else text[:57] + "…"
+        self._log(f"[ui] prompt inicial guardado ({len(text)} chars): {preview!r}")
+
+    # ---- Vocabulario personal (pestaña Vocabulario; lógica en app/vocab.py) ----
+    def _on_vocab_hotwords_save(self, text: str):
+        self.settings.set("hotwords", text)
+        # Se leen de settings en cada dictado → aplican desde el siguiente.
+        self._log(f"[vocab] hotwords guardados: {text!r}")
+
+    def _on_vocab_tokens(self, hotwords_text: str):
+        return vocab.budget_label(
+            self.settings.get("initial_prompt") or "",
+            hotwords_text,
+            self.settings.get("model") or config.DEFAULT_MODEL,
+        )
+
+    def _on_vocab_list(self):
+        return vocab.personal_list()
+
+    def _on_vocab_add(self, wrong: str, right: str):
+        err = vocab.personal_add(wrong, right)
+        if err is None:
+            self.replacements.reload()
+            self._log(f"[vocab] reemplazo agregado: {wrong.strip()!r} → {right.strip()!r}")
+        return err
+
+    def _on_vocab_remove(self, wrong: str) -> bool:
+        ok = vocab.personal_remove(wrong)
+        if ok:
+            self.replacements.reload()
+            self._log(f"[vocab] reemplazo eliminado: {wrong!r}")
+        return ok
+
+    def _on_vocab_analyze(self):
+        return vocab.suggest_from_logs(
+            days=30, hotwords=self.settings.get("hotwords") or ""
+        )
+
+    def _on_vocab_ignore(self, word: str):
+        vocab.ignore_word(word)
+        self._log(f"[vocab] palabra ignorada para sugerencias: {word!r}")
+
+    def _on_quality_profile_change(self, profile_key: str):
+        profile = config.QUALITY_PROFILES.get(profile_key)
+        if profile is None:
+            return
+        label = config.QUALITY_PROFILE_LABELS.get(profile_key, profile_key)
+        self._log(f"[ui] perfil de calidad → '{label}'")
+
+        # Aviso especial: medium es pesado.
+        if profile_key == config.QUALITY_PROFILE_ACCURATE:
+            self._log(
+                "[whisper] perfil Preciso: modelo 'medium' (~1.5GB). "
+                "Si es la primera vez se descargará; en CPU puede ser lento."
+            )
+
+        prev_model = self.settings.get("model")
+        prev_compute = self.settings.get("compute_type")
+
+        # Aplica todos los valores del perfil a settings.
+        self.settings.set("quality_profile", profile_key)
+        for k, v in profile.items():
+            self.settings.set(k, v)
+
+        # Refleja modelo nuevo en la UI sin disparar otro on_model_change.
+        new_model = profile["model"]
+        self.ui.set_model(new_model)
+
+        # Recarga el modelo solo si modelo o compute_type cambiaron.
+        new_compute = profile["compute_type"]
+        if new_model != prev_model or new_compute != prev_compute:
+            self._model_ready.clear()
+            threading.Thread(
+                target=self._reload_model,
+                args=(new_model, new_compute),
+                daemon=True,
+            ).start()
+
+    def _on_hotkey_toggle(self, enabled: bool):
+        self.settings.set("hotkey_enabled", enabled)
+        self._log(f"[hotkey] atajo global {'ACTIVADO' if enabled else 'DESACTIVADO'} "
+                  f"({self.settings.get('hotkey').upper()})")
+
+    # ---------------- inicio con Windows / minimizado ----------------
+    def _on_start_with_windows_toggle(self, enabled: bool):
+        self.settings.set("start_with_windows", enabled)
+        if enabled:
+            ok = autostart.enable(on_log=self._log)
+        else:
+            ok = autostart.disable(on_log=self._log)
+        if not ok:
+            # Revierte el switch en la UI si la operación de registro falló.
+            self._log("[autostart] la operación falló; revierto el switch en la UI")
+            self.ui.set_start_with_windows(not enabled)
+            self.settings.set("start_with_windows", not enabled)
+
+    def _on_start_minimized_toggle(self, enabled: bool):
+        self.settings.set("start_minimized", enabled)
+        self._log(f"[app] iniciar minimizada {'ACTIVADO' if enabled else 'DESACTIVADO'}")
+
+    def _on_theme_change(self, key: str):
+        self.settings.set("ui_theme", key)
+        self._log(f"[ui] tema de color → '{key}' (guardado)")
+
+    def _sync_autostart_on_launch(self):
+        """Alinea HKCU\\Run con la preferencia guardada. Si está activo, reescribe
+        la ruta actual (corrige rutas viejas tras mover/reinstalar el .exe)."""
+        try:
+            want = bool(self.settings.get("start_with_windows"))
+            has = autostart.is_enabled()
+            if want and not has:
+                autostart.enable(on_log=self._log)
+            elif want and has:
+                # Reescribe por si la ruta cambió.
+                cur = autostart.current_command()
+                new = autostart.get_app_executable_path()
+                if cur != new:
+                    autostart.enable(on_log=self._log)
+            elif not want and has:
+                autostart.disable(on_log=self._log)
+        except Exception as e:
+            self._log(f"[autostart] error sincronizando al arranque: {e}")
+
+    # ---------------- historial ----------------
+    def _on_history_copy(self, text: str):
+        if not text:
+            return
+        if copy_only(text, on_log=self._log):
+            self._log("[history] entrada copiada al portapapeles")
+
+    def _on_history_paste(self, text: str):
+        if not text:
+            return
+        threading.Thread(target=self._do_paste_async, args=(text,), daemon=True).start()
+
+    def _do_paste_async(self, text: str):
+        self._set_state("pasting")
+        ok = paste_text(text, on_log=self._log,
+                        paste_delay_ms=self.settings.get("paste_delay_ms"))
+        self._set_state("idle" if ok else "error")
+        if not ok:
+            self.beeps.error()
+
+    def _on_history_clear(self):
+        self.history.clear()
+        self.ui.set_history([])
+
+    # ---------------- registro de dictados ----------------
+    def _log_dictation(self, *, audio, audio_duration, raw_text, final_text,
+                       applied, incremental, chunks=None):
+        """Escribe la entrada del dictado en el registro (y su WAV si toca).
+        Nunca lanza: un fallo aquí no puede romper el pegado del texto."""
+        if not bool(self.settings.get("dictation_log_enabled")):
+            return
+        try:
+            stats = self.transcriber.dictation_stats()
+            # "Sospechoso" = hubo que descartar algo o el dictado quedó vacío:
+            # los casos que vale la pena auditar con el audio. Los "..." de
+            # pausa NO marcan: aparecen en ~29% de dictados normales y llenaban
+            # logs/audio de WAVs sin interés (análisis 2026-07-21). Los toques
+            # accidentales del hotkey (<0.5s, vacíos) tampoco: eran ~10 WAVs de
+            # 0.03s por semana sin nada que auditar (análisis 2026-08-03).
+            vacio_relevante = not final_text and float(audio_duration) >= 0.5
+            sospechoso = bool(
+                stats["descartes"] or stats["repeticiones"] or vacio_relevante
+            )
+            entry_id = time.strftime("%Y%m%d-%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}"
+            audio_mode = self.settings.get("dictation_log_audio")
+            audio_file = None
+            if audio_mode == "todos" or (audio_mode == "sospechosos" and sospechoso):
+                audio_file = self.dictation_log.save_audio(audio, entry_id)
+            self.dictation_log.add({
+                "id": entry_id,
+                "audio_s": round(float(audio_duration), 2),
+                "modelo": self.transcriber.current_model_name,
+                "backend": self.transcriber.backend_str,
+                "incremental": bool(incremental),
+                "tramos": chunks,
+                "crudo": raw_text,
+                "final": final_text,
+                "reemplazos": [[k, v] for k, v in (applied or [])],
+                "descartes": stats["descartes"],
+                "puntos_suspensivos": stats["puntos_suspensivos"],
+                "repeticiones": stats["repeticiones"],
+                "min_avg_logprob": stats["min_avg_logprob"],
+                "max_no_speech": stats["max_no_speech"],
+                "sospechoso": sospechoso,
+                "audio": audio_file,
+            })
+        except Exception as e:
+            self._log(f"[registro] error registrando dictado: {e}")
+
+    # ---------------- CapsLock helpers ----------------
+    _VK_CAPITAL = 0x14
+
+    def _is_capslock_hotkey(self) -> bool:
+        try:
+            return "capslock" in self.settings.get("hotkey").lower()
+        except Exception:
+            return False
+
+    def _read_capslock(self) -> bool:
+        try:
+            return bool(ctypes.windll.user32.GetKeyState(self._VK_CAPITAL) & 0x0001)
+        except Exception:
+            return False
+
+    def _toggle_capslock(self):
+        try:
+            user32 = ctypes.windll.user32
+            user32.keybd_event(self._VK_CAPITAL, 0x45, 0, 0)
+            user32.keybd_event(self._VK_CAPITAL, 0x45, 0x0002, 0)
+        except Exception as e:
+            self._log(f"[capslock] no se pudo togglear: {e}")
+
+    def _restore_capslock_if_needed(self):
+        if self._capslock_was_on is None:
+            return
+        try:
+            current = self._read_capslock()
+            if current != self._capslock_was_on:
+                self._toggle_capslock()
+                self._log(f"[capslock] restaurado a {'ON' if self._capslock_was_on else 'OFF'}")
+        finally:
+            self._capslock_was_on = None
+
+    # ---------------- hotkey: push-to-talk ----------------
+    def _hotkey_press(self):
+        # Si el atajo está desactivado, no hacemos nada (la tecla funciona normal).
+        if not bool(self.settings.get("hotkey_enabled")):
+            return
+        # Marca "press en curso" para que on_release espere.
+        self._press_done.clear()
+        try:
+            with self._state_lock:
+                if self._state not in ("idle", "error"):
+                    return
+                if not self._model_ready.is_set():
+                    self._log("[ctrl] aún cargando modelo, espera unos segundos…")
+                    self.beeps.error()
+                    return
+                self._recording_source = "hotkey"
+                # Guarda estado de CapsLock si aplica.
+                if self._is_capslock_hotkey():
+                    self._capslock_was_on = self._read_capslock()
+            self._start_recording_internal()
+        finally:
+            self._press_done.set()
+
+    def _hotkey_release(self):
+        if not bool(self.settings.get("hotkey_enabled")):
+            return
+        # Espera a que termine on_press para evitar race en taps rápidos.
+        self._press_done.wait(timeout=3.0)
+        with self._state_lock:
+            if self._recording_source != "hotkey":
+                return
+        threading.Thread(target=self._process_pipeline, daemon=True).start()
+
+    # ---------------- botón UI: toggle ----------------
+    def _toggle(self):
+        with self._state_lock:
+            if self._state in ("idle", "error"):
+                if not self._model_ready.is_set():
+                    self._log("[ctrl] aún cargando modelo…")
+                    self.beeps.error()
+                    return
+                self._recording_source = "button"
+                start = True
+                process = False
+            elif self._state == "recording":
+                start = False
+                process = True
+            else:
+                self._log(f"[ctrl] toggle ignorado en estado '{self._state}'")
+                return
+        if start:
+            self._start_recording_internal()
+        elif process:
+            threading.Thread(target=self._process_pipeline, daemon=True).start()
+
+    def _make_incremental_session(self) -> IncrementalSession | None:
+        """Crea la sesión de transcripción incremental para esta grabación.
+        Congela los parámetros de Whisper al momento del press (igual que hacía
+        el pipeline al final) y transcribe cada tramo en un worker propio."""
+        try:
+            prompt = (
+                self.settings.get("initial_prompt")
+                if self.settings.get("initial_prompt_enabled")
+                else None
+            )
+            params = dict(
+                language=self.settings.get("language"),
+                beam_size=int(self.settings.get("beam_size")),
+                best_of=int(self.settings.get("best_of")),
+                temperature=float(self.settings.get("temperature")),
+                vad_filter=bool(self.settings.get("vad_filter")),
+                condition_on_previous_text=bool(self.settings.get("condition_on_previous_text")),
+                initial_prompt=prompt,
+                hotwords=self.settings.get("hotwords"),
+                mixed_language_mode=bool(self.settings.get("mixed_language_mode")),
+                debug_segments=bool(self.settings.get("debug_segments")),
+                batched=False,  # tramos de ~6-15s: el batching no aporta nada
+                strip_ellipsis=bool(self.settings.get("strip_ellipsis")),
+            )
+
+            def transcribe_chunk(audio):
+                return self.transcriber.transcribe(
+                    audio,
+                    audio_duration=len(audio) / config.SAMPLE_RATE,
+                    **params,
+                )
+
+            return IncrementalSession(transcribe_fn=transcribe_chunk, on_log=self._log)
+        except Exception as e:
+            self._log(f"[incremental] no se pudo iniciar la sesión: {e}. "
+                      f"Sigo con transcripción al final (modo clásico).")
+            return None
+
+    def _start_recording_internal(self):
+        try:
+            # Resetea las stats del dictado ANTES de que el worker incremental
+            # pueda transcribir el primer tramo (alimentan el registro al final).
+            self.transcriber.begin_dictation()
+            self._inc_session = None
+            sink = None
+            if (bool(self.settings.get("incremental_transcription_enabled"))
+                    and self._model_ready.is_set()):
+                self._inc_session = self._make_incremental_session()
+                if self._inc_session is not None:
+                    sink = self._inc_session.feed
+            self.recorder.start(chunk_sink=sink)
+            self._set_state("recording")
+            self.ui.set_button_text("Detener y transcribir")
+            self.beeps.start()
+        except Exception as e:
+            self._log(f"[audio] no se pudo iniciar: {e}")
+            self._set_state("error")
+            self.ui.set_button_text("Iniciar grabación")
+            self.beeps.error()
+
+    def _process_pipeline(self):
+        try:
+            audio = self.recorder.stop()
+            inc = getattr(self, "_inc_session", None)
+            self._inc_session = None
+            self.ui.set_button_text("Iniciar grabación")
+            self.beeps.stop()
+            if audio is None or len(audio) == 0:
+                if inc is not None:
+                    inc.abort()
+                self._set_state("idle")
+                return
+
+            audio_duration = len(audio) / config.SAMPLE_RATE
+
+            # Mute por HARDWARE del headset: el driver entrega ceros digitales
+            # a todo el sistema y Windows lo sigue reportando como no-muteado.
+            # Transcribir no tiene sentido; avisar en la barra sí.
+            if is_digital_silence(audio, audio_duration):
+                if inc is not None:
+                    inc.abort()
+                self._log(f"[audio] ⚠ grabación de {audio_duration:.1f}s en silencio "
+                          "DIGITAL absoluto. Revisa el botón de mute físico del "
+                          "headset (Windows no lo reporta como muteado).")
+                self._log_dictation(
+                    audio=audio, audio_duration=audio_duration,
+                    raw_text="", final_text="", applied=[],
+                    incremental=inc is not None, chunks=None,
+                )
+                self._set_state("idle")
+                self.floating_bar.show_error_and_hide("¿Micrófono en mute?", 3500)
+                self.beeps.error()
+                return
+
+            self._set_state("transcribing")
+            self._start_elapsed_timer()
+            t_rep = 0.0
+            inc_total_s = None
+            inc_chunks = None
+            pp = self._perf_params()
+            try:
+                # NO recargamos el modelo aquí: ya está cargado (preload / cambio
+                # de perfil). Recargar a mitad de transcripción causaba cuelgues.
+                if inc is not None:
+                    # Incremental: los tramos previos ya se transcribieron en
+                    # segundo plano mientras hablabas; aquí solo se cierra el
+                    # último tramo y se une todo.
+                    text, inc_stats = inc.finalize()
+                    inc_total_s = float(inc_stats["transcripcion_total_s"])
+                    inc_chunks = int(inc_stats["chunks"])
+                    self._log(
+                        f"[incremental] audio={audio_duration:.1f}s · "
+                        f"tramos={inc_stats['chunks']} · "
+                        f"espera_final={inc_stats['espera_final_s']:.2f}s · "
+                        f"transcripcion_total={inc_total_s:.2f}s · "
+                        f"errores={inc_stats['errores']}"
+                    )
+                else:
+                    prompt = (
+                        self.settings.get("initial_prompt")
+                        if self.settings.get("initial_prompt_enabled")
+                        else None
+                    )
+                    text = self.transcriber.transcribe(
+                        audio,
+                        language=self.settings.get("language"),
+                        beam_size=int(self.settings.get("beam_size")),
+                        best_of=int(self.settings.get("best_of")),
+                        temperature=float(self.settings.get("temperature")),
+                        vad_filter=bool(self.settings.get("vad_filter")),
+                        condition_on_previous_text=bool(self.settings.get("condition_on_previous_text")),
+                        initial_prompt=prompt,
+                        hotwords=self.settings.get("hotwords"),
+                        audio_duration=audio_duration,
+                        mixed_language_mode=bool(self.settings.get("mixed_language_mode")),
+                        debug_segments=bool(self.settings.get("debug_segments")),
+                        batched=pp["batched"],
+                        batch_size=pp["batch_size"],
+                        strip_ellipsis=bool(self.settings.get("strip_ellipsis")),
+                    )
+            except Exception as e:
+                self._log(f"[whisper] error transcribiendo: {e}")
+                self._set_state("error")
+                self.beeps.error()
+                return
+            finally:
+                self._stop_elapsed_timer()
+
+            text = clean_text(text)
+            if not text:
+                self._log("[whisper] no se detectó texto en el audio")
+                self._log_benchmark(audio_duration, 0.0, pp, trans_s_override=inc_total_s)
+                # Dictado vacío: suele ser que TODO se descartó ("..." de pausa,
+                # frase fantasma). Registrarlo (con audio) es oro para diagnóstico.
+                self._log_dictation(
+                    audio=audio, audio_duration=audio_duration,
+                    raw_text="", final_text="", applied=[],
+                    incremental=inc is not None, chunks=inc_chunks,
+                )
+                self._set_state("idle")
+                return
+
+            raw_text = text  # lo que dijo Whisper, antes de reemplazos/normalizador
+            applied_repl: list = []
+            if self.settings.get("replacements_enabled"):
+                self._set_state("processing")
+                t_rep0 = time.perf_counter()
+                new_text, applied = self.replacements.apply(text)
+                t_rep = time.perf_counter() - t_rep0
+                applied_repl = list(applied or [])
+                if applied and bool(self.settings.get("debug_replacements")):
+                    aplicados = ", ".join(f"{k!r}→{v!r}" for k, v in applied)
+                    self._log(f"[replacements] aplicados: {aplicados}")
+                text = new_text
+
+            # Normalizador dedicado de correos/URLs/símbolos. Corre DESPUÉS de los
+            # reemplazos (generales + personales) y ANTES de mostrar/guardar/pegar.
+            # Es genérico, idempotente y se desactiva con normalize_emails_urls=false.
+            try:
+                norm_settings = self.settings.all()
+                norm_settings["_log"] = self._log  # para debug_normalizer
+                text = normalize_emails_urls_symbols(text, norm_settings)
+            except Exception as e:
+                self._log(f"[normalizer] error (texto sin cambios): {e}")
+
+            self._log_benchmark(audio_duration, t_rep, pp, trans_s_override=inc_total_s)
+
+            self.ui.set_transcription(text)
+            self._log(f"[whisper] texto: {text!r}")
+            self.history.add(text)
+            self.ui.set_history(self.history.items())
+            self._log_dictation(
+                audio=audio, audio_duration=audio_duration,
+                raw_text=raw_text, final_text=text, applied=applied_repl,
+                incremental=inc is not None, chunks=inc_chunks,
+            )
+
+            mode = self.settings.get("paste_mode")
+            auto = bool(self.settings.get("auto_paste_enabled"))
+            if mode == config.PASTE_MODE_PASTE and auto:
+                self._set_state("pasting")
+                ok = paste_text(text, on_log=self._log,
+                                paste_delay_ms=self.settings.get("paste_delay_ms"))
+                self._set_state("idle" if ok else "error")
+                if not ok:
+                    self.beeps.error()
+            else:
+                ok = copy_only(text, on_log=self._log)
+                self._set_state("idle" if ok else "error")
+                if not ok:
+                    self.beeps.error()
+        except Exception as e:
+            self._log(f"[ctrl] error inesperado en pipeline: {e}")
+            error_log.log_error("error inesperado en pipeline de dictado", e)
+            self._set_state("error")
+            self.beeps.error()
+        finally:
+            self._recording_source = None
+            # Restaura CapsLock si fue el hotkey usado.
+            self._restore_capslock_if_needed()
+
+    # ---------------- tray ----------------
+    def _tray_show(self):
+        self.ui.show_from_tray()
+
+    def _tray_hide(self):
+        self.ui.hide_to_tray()
+
+    def _tray_quit(self):
+        self._quitting = True
+        self.ui.run_on_ui_thread(self._real_shutdown)
+
+    # ---------------- cierre ----------------
+    def _on_close_request(self):
+        if self._quitting:
+            self._real_shutdown()
+            return
+        self.ui.hide_to_tray()
+        self._log("[app] ventana oculta en bandeja. Click derecho en el ícono para salir.")
+
+    def _real_shutdown(self):
+        try:
+            geom = self.ui.geometry()
+            if geom:
+                self.settings.set("last_window_geometry", geom)
+        except Exception:
+            pass
+        try:
+            self.hotkeys.stop()
+        except Exception:
+            pass
+        try:
+            self.tray.stop()
+        except Exception:
+            pass
+        try:
+            self.floating_bar.hide()
+        except Exception:
+            pass
+        self.ui.destroy()
+
+    # ---------------- entrypoint ----------------
+    def run(self):
+        self._log(f"[app] iniciada. Atajo global: {self.settings.get('hotkey').upper()}")
+        self._log(f"[app] configs en: {config.APP_DATA_DIR}")
+        self._log("[app] PUSH-TO-TALK: MANTÉN el hotkey para grabar, suéltalo para transcribir y pegar.")
+        self._log("[app] El botón de la ventana sigue siendo toggle (clic = empieza, clic = termina).")
+        try:
+            self.ui.run()
+        finally:
+            if not self._quitting:
+                self._real_shutdown()
+
+
+def main():
+    error_log.install_crash_handlers()
+    try:
+        Controller().run()
+    except KeyboardInterrupt:
+        sys.exit(0)
+    except Exception as e:
+        # Sin esto, en el .exe (console=False) un fallo de arranque hace que
+        # la app "desaparezca" sin ventana ni traza — imposible dar soporte.
+        error_log.log_error("fallo fatal iniciando/ejecutando Wisip", e)
+        error_log.show_error_dialog(
+            "Wisip — error al iniciar",
+            "Wisip no pudo iniciar o se cerró por un error inesperado.\n\n"
+            f"Detalle: {type(e).__name__}: {e}\n\n"
+            f"Traza completa en:\n{config.ERROR_LOG_PATH}",
+        )
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()

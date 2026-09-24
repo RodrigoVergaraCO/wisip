@@ -1,0 +1,69 @@
+ACUERDO DE LICENCIA DE USUARIO FINAL — WISIP
+
+Última actualización: 2026
+
+Lee este acuerdo con atención antes de instalar y usar Wisip ("la
+aplicación"). Al hacer clic en "Acepto" o al instalar la aplicación,
+declaras que aceptas estos términos. Si no estás de acuerdo, cancela la
+instalación.
+
+
+1. CONCESIÓN DE LICENCIA
+
+   Wisip se te otorga bajo una licencia personal, no exclusiva y revocable
+   para instalarla y usarla en computadores que controles. No puedes
+   sublicenciarla, alquilarla ni revenderla sin permiso por escrito.
+
+
+2. FUNCIONAMIENTO LOCAL
+
+   Wisip realiza el reconocimiento de voz en tu propio computador usando
+   modelos locales (faster-whisper). No se envía audio ni texto a servidores
+   externos. No requiere cuenta, suscripción ni clave de API.
+
+
+3. PRIVACIDAD
+
+   Los archivos de configuración (app_settings.json), reemplazos
+   (replacements.json) e historial (history.json) se guardan únicamente en
+   tu carpeta %APPDATA%. No se transmiten a terceros.
+
+
+4. ATAJO GLOBAL DE TECLADO
+
+   La aplicación registra un atajo global del sistema (configurable). La
+   tecla elegida se intercepta a nivel del sistema mientras se mantenga
+   pulsada para evitar que se escriba en aplicaciones de fondo. Esto es
+   inherente al funcionamiento de la aplicación.
+
+
+5. SIN GARANTÍAS
+
+   La aplicación se entrega "tal cual", sin garantías de ningún tipo. El
+   autor no se hace responsable por daños directos, indirectos, pérdida
+   de datos o interrupción de trabajo derivados del uso de la aplicación.
+
+
+6. COMPONENTES DE TERCEROS
+
+   Wisip utiliza componentes de código abierto, entre otros:
+   faster-whisper, ctranslate2, CustomTkinter, sounddevice, keyboard,
+   pyperclip, pystray, Pillow. Sus respectivas licencias se aplican a
+   dichos componentes.
+
+
+7. ACTUALIZACIONES
+
+   El autor puede publicar nuevas versiones. La instalación de versiones
+   posteriores reemplaza la versión instalada actualmente.
+
+
+8. FIN DE LA LICENCIA
+
+   Puedes desinstalar Wisip en cualquier momento desde "Programas y
+   características" de Windows. Al desinstalar, las configuraciones en
+   %APPDATA% se conservan; bórralas manualmente si lo deseas.
+
+
+Si tienes preguntas, contacta al autor a través de los canales oficiales
+de Wisip.
