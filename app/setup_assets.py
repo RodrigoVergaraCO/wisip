@@ -39,7 +39,7 @@ from pathlib import Path
 
 from . import config
 
-_UA = "Wisip/2.7 (+https://github.com/acropolifamily-web/wisip)"
+_UA = "Wisip/2.7 (+https://github.com/RodrigoVergaraCO/wisip)"
 _CHUNK = 1 << 20  # 1 MB por lectura
 _TIMEOUT = 60
 _RETRIES = 3

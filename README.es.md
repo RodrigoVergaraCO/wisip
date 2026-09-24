@@ -66,7 +66,7 @@ medio segundo. Sin GPU cae a CPU automáticamente.
 ## Empezar (desde el código)
 
 ```powershell
-git clone https://github.com/acropolifamily-web/wisip.git
+git clone https://github.com/RodrigoVergaraCO/wisip.git
 cd wisip
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

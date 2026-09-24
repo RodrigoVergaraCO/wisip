@@ -11,14 +11,14 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/acropolifamily-web/wisip/actions/workflows/validate.yml"><img src="https://github.com/acropolifamily-web/wisip/actions/workflows/validate.yml/badge.svg" alt="validate"></a>
+  <a href="https://github.com/RodrigoVergaraCO/wisip/actions/workflows/validate.yml"><img src="https://github.com/RodrigoVergaraCO/wisip/actions/workflows/validate.yml/badge.svg" alt="validate"></a>
   <img src="https://img.shields.io/badge/python-3.10–3.12-blue" alt="python">
   <img src="https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4" alt="windows">
   <img src="https://img.shields.io/badge/license-GPL--3.0-green" alt="license">
 </p>
 
 <p align="center">
-  <a href="https://acropolifamily-web.github.io/wisip/">Website</a> ·
+  <a href="https://rodrigovergaraco.github.io/wisip/">Website</a> ·
   <a href="README.es.md">Leer en español</a> ·
   <a href="docs/MANUAL.es.md">Full manual (es)</a> ·
   <a href="docs/ROADMAP.md">Roadmap (es)</a>
@@ -73,7 +73,7 @@ about half a second. Without a GPU it falls back to CPU automatically.
 ## Quick start (from source)
 
 ```powershell
-git clone https://github.com/acropolifamily-web/wisip.git
+git clone https://github.com/RodrigoVergaraCO/wisip.git
 cd wisip
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1

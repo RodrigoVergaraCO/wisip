@@ -59,7 +59,7 @@ LICENSE_REVALIDATE_DAYS = 30       # cada cuánto se consulta /validate
 LICENSE_OFFLINE_GRACE_DAYS = 90    # sin poder validar más de esto → bloquea
 # Página de compra (ponerla cuando exista la tienda; hasta entonces el botón
 # lleva al repositorio).
-BUY_URL = "https://github.com/acropolifamily-web/wisip#license"
+BUY_URL = "https://github.com/RodrigoVergaraCO/wisip#license"
 
 # Tamaño aproximado de cada modelo (descarga inicial).
 MODEL_DOWNLOAD_MB = {

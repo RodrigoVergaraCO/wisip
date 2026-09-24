@@ -34,7 +34,7 @@ import urllib.request
 
 from . import config
 
-_UA = "Wisip/2.9 (+https://github.com/acropolifamily-web/wisip)"
+_UA = "Wisip/2.9 (+https://github.com/RodrigoVergaraCO/wisip)"
 _TIMEOUT = 20
 
 STATE_LICENSED = "licensed"
