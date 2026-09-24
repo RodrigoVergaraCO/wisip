@@ -38,3 +38,5 @@ jobs:
         run: python scripts/check_audio_devices.py
       - name: Licensing (mock Lemon Squeezy server)
         run: python scripts/check_license.py
+      - name: Auto-update (mock releases server)
+        run: python scripts/check_updater.py

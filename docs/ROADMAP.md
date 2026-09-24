@@ -118,7 +118,9 @@ algo entiende que en una frase sobre proxies "prótesis" no encaja.
 - ~~Claves de licencia (Lemon Squeezy).~~ **Cliente hecho en 2.9.0
   (2026-09-24)**: falta crear la tienda/producto en Lemon Squeezy (límite de
   activaciones = 1) y poner `BUY_URL` en `config.py`.
-- Firma de código (SmartScreen), auto-update.
+- ~~Auto-update.~~ **Hecho en 2.11.0 (2026-09-24)**: GitHub Releases +
+  instalación por usuario silenciosa.
+- Firma de código (SmartScreen).
 - Sitio de una página con demo en vídeo.
 
 ---

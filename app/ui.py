@@ -10,6 +10,7 @@ from . import audio_devices
 from . import config
 from . import themes
 from .onboarding import pretty_hotkey
+from .version import __version__
 
 try:
     from PIL import Image, ImageTk
@@ -104,6 +105,10 @@ class AppUI:
         on_license_activate=None,
         on_license_deactivate=None,
         buy_url: str = "",
+        # Auto-actualización (2.11.0). Opcionales.
+        on_update_install=None,
+        on_check_updates=None,
+        on_auto_update_toggle=None,
     ):
         self.on_model_change = on_model_change
         self.on_language_change = on_language_change
@@ -138,6 +143,11 @@ class AppUI:
         self.on_license_deactivate = on_license_deactivate
         self._buy_url = buy_url or config.BUY_URL
         self._last_license: dict | None = None
+        self.on_update_install = on_update_install
+        self.on_check_updates = on_check_updates
+        self.on_auto_update_toggle = on_auto_update_toggle
+        self._last_update_banner: tuple | None = None   # (texto, url)
+        self._last_update_status: str = f"Versión {__version__}"
         self._gpu_pack_btn_text: str | None = None
 
         # Guard para evitar disparar on_model_change cuando lo cambiamos por código.
@@ -486,6 +496,24 @@ class AppUI:
         scroll = ctk.CTkScrollableFrame(parent, fg_color=BG_BASE)
         scroll.pack(fill="both", expand=True)
 
+        # Aviso de actualización (oculto hasta que haya una).
+        self.update_banner = ctk.CTkFrame(
+            scroll, fg_color=ACCENT_CONTAINER, border_color=PRIMARY, border_width=1, corner_radius=6,
+        )
+        self.update_banner_label = ctk.CTkLabel(
+            self.update_banner, text="", font=self._fnt(12, bold=True), text_color=TEXT, anchor="w",
+        )
+        self.update_banner_label.pack(side="left", padx=14, pady=10, fill="x", expand=True)
+        self.update_banner_btn = ctk.CTkButton(
+            self.update_banner, text="INSTALAR AHORA", command=self._update_banner_clicked,
+            fg_color=PRIMARY_BTN, hover_color=PRIMARY_BTN_HOVER, text_color=PRIMARY_BTN_TEXT,
+            font=self._fnt(10, bold=True), width=130, height=28, corner_radius=4,
+        )
+        self.update_banner_btn.pack(side="right", padx=10, pady=8)
+        self._home_scroll = scroll
+        if self._last_update_banner:
+            self._apply_update_banner(*self._last_update_banner)
+
         # Card del hint del hotkey.
         hint = ctk.CTkFrame(
             scroll, fg_color=BG_SURFACE,
@@ -624,6 +652,9 @@ class AppUI:
             font=self._fnt_mono(11), text_color=SECONDARY, anchor="w",
         )
         self.backend_label.pack(anchor="w", padx=8, pady=(0, 8))
+        # Si el banner ya estaba visible, mantenerlo arriba del todo.
+        if self._last_update_banner:
+            self.update_banner.pack(fill="x", padx=4, pady=(2, 10), before=self.update_banner.master.winfo_children()[1])
 
     # ---------- Tab: Ajustes ----------
     def _build_settings_tab(self, parent):
@@ -766,6 +797,22 @@ class AppUI:
         )
         _switch_card(3, "INICIAR MINIMIZADA (AL TRAY)", self.start_minimized_var,
                      self._start_minimized_changed, "start_minimized_switch")
+
+        # Actualizaciones.
+        self.auto_update_var = tk.BooleanVar(value=bool(self._initial.get("auto_update_install", True)))
+        _switch_card(4, "ACTUALIZAR AUTOMÁTICAMENTE", self.auto_update_var,
+                     self._auto_update_changed, "auto_update_switch")
+        upd = ctk.CTkFrame(toggles, fg_color="transparent")
+        upd.grid(row=5, column=0, columnspan=2, sticky="ew", padx=4, pady=(2, 4))
+        self.update_status_label = ctk.CTkLabel(
+            upd, text=self._last_update_status, font=self._fnt_mono(11), text_color=TEXT_MUTED, anchor="w",
+        )
+        self.update_status_label.pack(side="left", padx=8)
+        ctk.CTkButton(
+            upd, text="BUSCAR ACTUALIZACIONES", command=self._check_updates_clicked,
+            fg_color=BG_SURFACE_LOW, hover_color=BG_SURFACE_HIGHEST, border_color=BORDER,
+            border_width=1, text_color=TEXT, font=self._fnt(10, bold=True), height=28, corner_radius=4,
+        ).pack(side="right")
 
         # Ajustes avanzados, plegados: el prompt inicial confunde a quien no
         # sabe qué es Whisper (feedback del usuario, 2026-09-23).
@@ -1471,6 +1518,48 @@ class AppUI:
             "error": ERROR,
         }
 
+    # ---- auto-actualización ----
+    def _update_banner_clicked(self):
+        if self.on_update_install:
+            self.on_update_install()
+
+    def _check_updates_clicked(self):
+        try:
+            self.update_status_label.configure(text="Buscando actualizaciones…")
+        except Exception:
+            pass
+        if self.on_check_updates:
+            self.on_check_updates()
+
+    def _auto_update_changed(self):
+        self._initial["auto_update_install"] = bool(self.auto_update_var.get())
+        if self.on_auto_update_toggle:
+            self.on_auto_update_toggle(bool(self.auto_update_var.get()))
+
+    def _apply_update_banner(self, text, url=None):
+        try:
+            if text:
+                self.update_banner_label.configure(text=text)
+                self.update_banner_btn.configure(text="VER" if url else "INSTALAR AHORA")
+                if not self.update_banner.winfo_manager():
+                    kids = self._home_scroll.winfo_children()
+                    anchor = next((k for k in kids if k is not self.update_banner), None)
+                    if anchor is not None:
+                        self.update_banner.pack(fill="x", padx=4, pady=(2, 10), before=anchor)
+                    else:
+                        self.update_banner.pack(fill="x", padx=4, pady=(2, 10))
+            else:
+                self.update_banner.pack_forget()
+        except Exception:
+            pass
+
+    def set_update_banner(self, text: str | None, url: str | None = None):
+        """Muestra (texto) u oculta (None) el aviso de actualización en Inicio."""
+        self._ui_queue.put(("update_banner", (text, url)))
+
+    def set_update_status(self, text: str):
+        self._ui_queue.put(("update_status", text))
+
     def _toggle_advanced(self):
         self._adv_open = not self._adv_open
         try:
@@ -1532,6 +1621,7 @@ class AppUI:
             ini["ui_theme"] = self._theme_key
             mic = self.mic_menu.get().replace("  (no conectado)", "")
             ini["input_device_name"] = "" if mic == audio_devices.DEFAULT_LABEL else mic
+            ini["auto_update_install"] = bool(self.auto_update_var.get())
         except Exception:
             pass
 
@@ -1825,6 +1915,16 @@ class AppUI:
                     self._last_btn_text = payload
                     prefix = self._BTN_ICONS.get(payload, "")
                     self.toggle_btn.configure(text=prefix + payload)
+                elif kind == "update_banner":
+                    text, url = payload
+                    self._last_update_banner = (text, url) if text else None
+                    self._apply_update_banner(text, url)
+                elif kind == "update_status":
+                    self._last_update_status = payload
+                    try:
+                        self.update_status_label.configure(text=payload)
+                    except Exception:
+                        pass
                 elif kind == "license_status":
                     self._last_license = payload
                     self._apply_license_status(payload)

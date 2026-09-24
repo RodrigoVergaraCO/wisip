@@ -90,6 +90,14 @@ class TrayIcon:
         self._thread.start()
         self.on_log("[tray] icono activo en la bandeja")
 
+    def notify(self, message: str, title: str = "Wisip"):
+        """Globo de notificación de Windows desde el icono de la bandeja."""
+        try:
+            if self._icon is not None:
+                self._icon.notify(message, title)
+        except Exception as e:
+            self.on_log(f"[tray] notify falló: {e}")
+
     def stop(self):
         if self._icon is None:
             return

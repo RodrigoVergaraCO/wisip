@@ -3,6 +3,21 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.11.0 — 2026-09-24
+
+- **Auto-actualización** (`app/updater.py`): la app consulta la última release
+  de GitHub al arrancar y cada 6 horas, descarga el instalador en segundo
+  plano verificando `SHA256SUMS.txt`, y lo instala sola cuando llevas más de
+  un minuto sin dictar; Wisip se reinicia con la versión nueva. Interruptor
+  "Actualizar automáticamente" y botón "Buscar actualizaciones" en Ajustes;
+  aviso "Instalar ahora" en Inicio si prefieres decidir tú.
+- **Instalación por usuario** (`%LOCALAPPDATA%\Programs\Wisip`), sin UAC:
+  es lo que hace posible actualizar en silencio. Quien tenga la versión
+  anterior en `Program Files` debe desinstalarla una vez.
+- Versión única en `app/version.py`; `EXE/sync_version.py` la copia al
+  instalador y `EXE/publish_release.py` crea la release con el instalador y
+  su SHA256. Validador `scripts/check_updater.py`.
+
 ## 2.10.1 — 2026-09-24
 
 - Defaults de fábrica genéricos (prompt v10, hotwords v3; fuera el vocabulario del desarrollador) y enlace de compra real de Lemon Squeezy en la pestaña Licencia. Flujo de licencia verificado contra la API real: activar, límite de un equipo, validar, desactivar.

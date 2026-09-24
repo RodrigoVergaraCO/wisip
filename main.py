@@ -58,7 +58,9 @@ from app import audio_devices
 from app import setup_assets
 from app import themes
 from app import vocab
+from app import updater
 from app.license import LicenseManager
+from app.version import __version__
 from app.onboarding import OnboardingWizard, default_result as onboarding_defaults
 from app.setup_window import SetupWindow
 from app.audio_recorder import AudioRecorder, is_digital_silence
@@ -132,6 +134,9 @@ class Controller:
             on_input_device_change=self._on_input_device_change,
             on_license_activate=self._on_license_activate,
             on_license_deactivate=self._on_license_deactivate,
+            on_update_install=self._on_update_install_clicked,
+            on_check_updates=self._on_check_updates_clicked,
+            on_auto_update_toggle=self._on_auto_update_toggle,
             initial_settings=self.settings.all(),
             hotkey_label=self.settings.get("hotkey"),
         )
@@ -197,6 +202,10 @@ class Controller:
         # → carga. El autotune va DESPUÉS del paquete para que vea las DLLs.
         self._setup_busy = threading.Lock()
         self._model_download_failed = False
+        self._last_activity = time.time()
+        self._pending_update: dict | None = None
+        self._pending_installer = None
+        self._update_lock = threading.Lock()
         threading.Thread(target=self._preload_default_model, daemon=True).start()
 
         try:
@@ -223,6 +232,8 @@ class Controller:
 
     def _set_state(self, state: str):
         self._state = state
+        if state not in ("idle", "loading"):
+            self._last_activity = time.time()
         self.ui.set_status(state)
         self._update_floating_bar(state)
 
@@ -394,6 +405,106 @@ class Controller:
             self.ui.set_license_status(self.license.status())
         except Exception as e:
             self._log(f"[licencia] revalidación falló: {e}")
+        self._start_update_loop()
+
+    # ─── Auto-actualización (2.11.0) ───
+
+    def _start_update_loop(self):
+        if not bool(self.settings.get("auto_update_check")):
+            self._log("[update] comprobación de actualizaciones desactivada")
+            return
+        threading.Thread(target=self._update_loop, daemon=True, name="updater").start()
+
+    def _update_loop(self):
+        time.sleep(15)
+        while not self._quitting:
+            try:
+                self._check_and_maybe_update(manual=False)
+            except Exception as e:
+                self._log(f"[update] error: {e}")
+            for _ in range(6 * 60 * 12):   # 6 h en pasos de 5 s
+                if self._quitting:
+                    return
+                time.sleep(5)
+
+    def _check_and_maybe_update(self, manual: bool):
+        if not self._update_lock.acquire(blocking=False):
+            return
+        try:
+            info = updater.check_latest(self._log)
+            try:
+                self.settings.set("update_last_check", str(time.time()))
+            except Exception:
+                pass
+            if not updater.is_update_available(info):
+                self._pending_update = None
+                self.ui.set_update_status(f"Versión {__version__} · al día")
+                if manual:
+                    self.ui.set_update_banner(None)
+                return
+            self._pending_update = info
+            self.ui.set_update_status(f"Versión {__version__} · disponible {info['version']}")
+            self._log(f"[update] nueva versión {info['version']} (actual {__version__})")
+            try:
+                path = updater.download_update(info, on_log=self._log)
+            except Exception as e:
+                self._log(f"[update] descarga falló: {e}")
+                self.ui.set_update_banner(f"Nueva versión {info['version']} disponible", info.get("html_url"))
+                return
+            self._pending_installer = path
+            if bool(self.settings.get("auto_update_install")) and not manual:
+                self._install_when_idle(info, path)
+            else:
+                self.ui.set_update_banner(f"Wisip {info['version']} lista para instalar")
+        finally:
+            self._update_lock.release()
+
+    def _install_when_idle(self, info: dict, path):
+        """Espera (hasta 30 min) un momento sin dictado y actualiza sola."""
+        for _ in range(360):
+            if self._quitting:
+                return
+            with self._state_lock:
+                idle = self._state == "idle"
+            quiet = (time.time() - self._last_activity) > 60
+            if idle and quiet and self._onboarding is None and not self._rebinding:
+                break
+            time.sleep(5)
+        else:
+            self.ui.set_update_banner(f"Wisip {info['version']} lista para instalar")
+            return
+        self._log(f"[update] instalando Wisip {info['version']} automáticamente")
+        try:
+            self.tray.notify(f"Actualizando a Wisip {info['version']}. Se reiniciará en unos segundos.")
+        except Exception:
+            pass
+        self._do_install_update(path)
+
+    def _do_install_update(self, path):
+        if not updater.install_update(path, self._log):
+            self.ui.set_update_banner(f"Wisip {self._pending_update['version'] if self._pending_update else ''} lista para instalar")
+            return
+        # Cierre limpio: el instalador también manda el evento de cierre.
+        time.sleep(1.0)
+        self._quitting = True
+        self.ui.run_on_ui_thread(self._real_shutdown)
+
+    def _on_update_install_clicked(self):
+        def worker():
+            if self._pending_installer is not None:
+                self._do_install_update(self._pending_installer)
+            elif self._pending_update and self._pending_update.get("html_url"):
+                import webbrowser
+                webbrowser.open(self._pending_update["html_url"])
+            else:
+                self._check_and_maybe_update(manual=True)
+        threading.Thread(target=worker, daemon=True, name="update-install").start()
+
+    def _on_check_updates_clicked(self):
+        threading.Thread(target=self._check_and_maybe_update, args=(True,), daemon=True, name="update-check").start()
+
+    def _on_auto_update_toggle(self, enabled: bool):
+        self.settings.set("auto_update_install", bool(enabled))
 
     # ─── Licencias (2.9.0) ───
 

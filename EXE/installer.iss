@@ -7,7 +7,7 @@
 ; Resultado: EXE\installer\Wisip-Setup-1.0.0.exe
 
 #define MyAppName "Wisip"
-#define MyAppVersion "2.10.1"
+#define MyAppVersion "2.11.0"
 #define MyAppPublisher "Wisip"
 #define MyAppExeName "Wisip.exe"
 ; Desde la 2.7.0 hay UN solo instalador liviano (~70 MB): las DLLs CUDA se
@@ -45,8 +45,12 @@ Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
 ArchitecturesInstallIn64BitMode=x64compatible
-PrivilegesRequired=admin
+; 2.11.0: instalación POR USUARIO ({localappdata}\Programs\Wisip), sin UAC.
+; Es lo que permite que la auto-actualización sea silenciosa (como Chrome o
+; VS Code). {autopf}, {autoprograms} y {autodesktop} pasan a las rutas de usuario.
+PrivilegesRequired=lowest
 PrivilegesRequiredOverridesAllowed=dialog
+UsePreviousPrivileges=no
 MinVersion=10.0
 ShowLanguageDialog=auto
 

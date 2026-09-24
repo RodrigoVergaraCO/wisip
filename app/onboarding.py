@@ -297,7 +297,9 @@ class OnboardingWizard:
                       "una sola vez y quedará listo. Luego prueba: mantén la tecla, di una "
                       "frase y suéltala.", muted=True, size=11)
         self._text(f, "Todo esto se puede cambiar cuando quieras desde la ventana de Wisip "
-                      "(pestañas Inicio y Ajustes) o el icono de la bandeja.", muted=True, size=11)
+                      "(pestañas Inicio y Ajustes) o el icono de la bandeja. Wisip se actualiza "
+                      "solo cuando hay una versión nueva; se puede desactivar en Ajustes.",
+                   muted=True, size=11)
 
     # ── navegación ──────────────────────────────────────────────────────
     def _show_page(self, i: int):

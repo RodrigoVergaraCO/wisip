@@ -40,6 +40,14 @@ if errorlevel 1 (
     exit /b 1
 )
 
+echo [build] Sincronizando version (app\version.py -> installer.iss)...
+python "%EXE_DIR%sync_version.py"
+if errorlevel 1 (
+    echo [build] Error sincronizando la version
+    popd
+    exit /b 1
+)
+
 echo [build] Limpiando builds previos...
 if exist "%EXE_DIR%build" rmdir /s /q "%EXE_DIR%build"
 if exist "%EXE_DIR%Wisip" rmdir /s /q "%EXE_DIR%Wisip"

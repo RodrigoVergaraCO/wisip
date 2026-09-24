@@ -51,6 +51,10 @@ DEFAULTS = {
     "first_run_done": False,
     # Micrófono elegido, por NOMBRE (vacío = predeterminado del sistema).
     "input_device_name": "",
+    # Auto-actualización (2.11.0). Ver app/updater.py.
+    "auto_update_check": True,      # consultar GitHub Releases (cada 6 h)
+    "auto_update_install": True,    # descargar e instalar solo cuando la app esté en reposo
+    "update_last_check": "",
     # Licencias (2.9.0). Ver app/license.py.
     "trial_started": "",
     "license_key": "",
