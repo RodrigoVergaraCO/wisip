@@ -47,6 +47,11 @@ medio segundo. Sin GPU cae a CPU automáticamente.
   aplican en vivo y un botón "Analizar mis dictados" que mina el registro local
   en busca de palabras mal oídas (filtradas con
   [wordfreq](https://github.com/rspeer/wordfreq)).
+- **Corrige y aprende.** La última transcripción se puede editar: corriges
+  lo que salió mal, lo guardas y Wisip conserva en local el original, la
+  corrección y el audio. El analizador de Vocabulario convierte las
+  correcciones recurrentes en reglas con un clic, y audio + texto de
+  referencia forman tu set de evaluación (`scripts/analyze_corrections.py`).
 - **Diccionarios de reemplazo.** Términos técnicos y marcas (`chat gpt` →
   `ChatGPT`, `memu` → `MEmu`), correcciones seguras de español y un "modo
   técnico" opcional para símbolos.

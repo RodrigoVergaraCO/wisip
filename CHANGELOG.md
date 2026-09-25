@@ -3,6 +3,20 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.13.0 — 2026-09-24
+
+- **Corrige y Wisip aprende** (`app/corrections.py`): el cuadro "Última
+  transcripción" de Inicio ahora es editable. Corriges lo que salió mal,
+  pulsas "Guardar corrección" (o Ctrl + Enter) y se guarda en local el texto
+  original, el corregido, los pares palabra a palabra (mal → bien) y el audio
+  del dictado (`logs/correcciones/`). Ese audio + texto de referencia es el
+  set de evaluación para medir la precisión de verdad.
+- **Vocabulario → Analizar mis dictados** muestra primero tus correcciones,
+  con la forma correcta ya rellenada: un clic y queda como regla personal.
+- `scripts/analyze_corrections.py`: informe de sustituciones recurrentes,
+  borrados, añadidos y tamaño del set de evaluación, para revisarlo con la IA.
+  Validador `scripts/check_corrections.py` (CI).
+
 ## 2.12.2 — 2026-09-24
 
 - **Los atajos con Win y Shift no funcionaban en un Windows en español.** La

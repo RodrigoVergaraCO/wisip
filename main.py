@@ -69,6 +69,7 @@ from app.dictation_log import DictationLog
 from app.floating_bar import FloatingBar
 from app.history import History
 from app.hotkeys import MultiHotkeyManager
+from app import corrections
 from app.incremental import IncrementalSession
 from app.postprocessor import normalize_emails_urls_symbols
 from app.replacements import Replacements
@@ -130,6 +131,7 @@ class Controller:
             on_vocab_add=self._on_vocab_add,
             on_vocab_remove=self._on_vocab_remove,
             on_vocab_analyze=self._on_vocab_analyze,
+            on_correction_save=self._on_correction_save,
             on_vocab_ignore=self._on_vocab_ignore,
             on_gpu_pack_install=self._on_gpu_pack_install,
             on_input_device_change=self._on_input_device_change,
@@ -176,7 +178,14 @@ class Controller:
             is_enabled=lambda: bool(self.settings.get("hotkey_enabled")),
         )
         self.translator = mt.Translator(on_log=self._log)
+        try:
+            n_corr = corrections.count_this_month()
+            if n_corr:
+                self.ui.set_correction_status(f"{n_corr} correcciones guardadas este mes.")
+        except Exception:
+            pass
         self._recording_mode = "dictate"      # "dictate" | "translate"
+        self._last_dictation = None           # audio + textos del último dictado (para correcciones)
         self._rebind_target = "dictate"
         self.floating_bar = FloatingBar(
             parent_root=self.ui.root,
@@ -1044,9 +1053,32 @@ class Controller:
         return ok
 
     def _on_vocab_analyze(self):
-        return vocab.suggest_from_logs(
-            days=30, hotwords=self.settings.get("hotwords") or ""
-        )
+        """Candidatas para Vocabulario: primero lo que el usuario corrigió a
+        mano (con la forma correcta ya puesta), luego las palabras raras
+        recurrentes del registro."""
+        existing = {w for w, _ in vocab.personal_list()}
+        from_corr = corrections.suggest(corrections.load_corrections(days=90), existing=existing)
+        seen = {s["word"].lower() for s in from_corr}
+        from_logs = vocab.suggest_from_logs(days=30, hotwords=self.settings.get("hotwords") or "")
+        return from_corr + [s for s in from_logs if s["word"].lower() not in seen]
+
+    def _on_correction_save(self, original: str, corrected: str) -> str:
+        """Guarda la corrección hecha en Inicio con el audio del dictado si
+        aún es el último. Devuelve el mensaje para la UI."""
+        ld = self._last_dictation or {}
+        same = (ld.get("final") or "").strip() == (original or "").strip()
+        meta = {k: ld.get(k) for k in ("id", "crudo", "audio_s", "modelo", "idioma", "modo")} if same else {}
+        audio = ld.get("audio") if same else None
+        entry = corrections.save_correction(original, corrected, audio_f32=audio, meta=meta)
+        if entry is None:
+            return "No hay cambios que guardar."
+        pares = entry.get("pares") or []
+        self._log(f"[correcciones] guardada {entry['id']} ({len(pares)} cambio(s)"
+                  f"{', con audio' if entry.get('audio') else ''}): "
+                  + "; ".join(f"{a!r}→{b!r}" for a, b in pares[:4]))
+        n = corrections.count_this_month()
+        return (f"Corrección guardada ✓  ·  {n} este mes.  "
+                f"Vocabulario → «Analizar mis dictados» la convierte en regla con un clic.")
 
     def _on_vocab_ignore(self, word: str):
         vocab.ignore_word(word)
@@ -1177,6 +1209,8 @@ class Controller:
                 stats["descartes"] or stats["repeticiones"] or vacio_relevante
             )
             entry_id = time.strftime("%Y%m%d-%H%M%S") + f"-{int(time.time() * 1000) % 1000:03d}"
+            if self._last_dictation is not None:
+                self._last_dictation["id"] = entry_id
             audio_mode = self.settings.get("dictation_log_audio")
             audio_file = None
             if audio_mode == "todos" or (audio_mode == "sospechosos" and sospechoso):
@@ -1574,9 +1608,17 @@ class Controller:
 
             self._log_benchmark(audio_duration, t_rep, pp, trans_s_override=inc_total_s)
 
+            modo = self._recording_mode
             if self._recording_mode == "translate":
                 text = self._translate_final(text)
             self._recording_mode = "dictate"
+            # Se conserva el último dictado en memoria para que "Guardar
+            # corrección" pueda archivar su audio junto al texto corregido.
+            self._last_dictation = {
+                "audio": audio, "audio_s": round(float(audio_duration), 2), "crudo": raw_text,
+                "final": text, "modelo": self.transcriber.current_model_name,
+                "idioma": self.transcriber.dictation_language(), "modo": modo,
+            }
 
             self.ui.set_transcription(text)
             self._log(f"[whisper] texto: {text!r}")

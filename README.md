@@ -54,6 +54,11 @@ about half a second. Without a GPU it falls back to CPU automatically.
   224-token prompt budget), personal replacements that apply live, and a
   "analyze my dictations" button that mines the local log for misheard words
   (filtered with [wordfreq](https://github.com/rspeer/wordfreq)).
+- **Correct and it learns.** The last transcription is editable: fix what
+  came out wrong, save it, and Wisip stores original + correction + the audio
+  locally. The Vocabulary analyzer turns recurring corrections into
+  replacement rules with one click, and the audio + reference pairs become
+  your evaluation set (`scripts/analyze_corrections.py`).
 - **Replacement dictionaries.** Tech terms and brand casing (`chat gpt` →
   `ChatGPT`, `memu` → `MEmu`), safe Spanish fixes, and an opt-in "tech mode"
   for symbols.

@@ -53,6 +53,7 @@ def main():
         on_close_request=cb("close"), on_theme_change=cb("theme"),
         on_gpu_pack_install=cb("gpu_pack"), on_input_device_change=cb("mic"),
         on_license_activate=cb("lic_act"), on_license_deactivate=cb("lic_deact"),
+        on_correction_save=lambda o, c: (calls.__setitem__("corr", (o, c)) or "Guardada ✓"),
         initial_settings={"hotkey": "ctrl+windows", "input_device_name": "Micrófono X"},
         hotkey_label="ctrl+windows",
     )
@@ -98,6 +99,19 @@ def main():
     check("rebind dictar: la tecla de dictar muestra …", ui.hotkey_key_label.cget("text") == "…", ui.hotkey_key_label.cget("text"))
     ui.set_rebind_mode(False, "dictate"); pump(3)
 
+    print("── Corrección de la última transcripción ──")
+    import time as _t
+    check("existe correction_btn", hasattr(ui, "correction_btn") and hasattr(ui, "correction_status"))
+    ui.set_transcription("Los prótesis de Amazon."); pump(3)
+    ui._correction_save_clicked(); pump(3)
+    check("sin cambios → aviso", "No hay cambios" in ui.correction_status.cget("text"), ui.correction_status.cget("text"))
+    ui.transcription_box.delete("1.0", "end"); ui.transcription_box.insert("1.0", "Los proxys de Amazon.")
+    ui._correction_save_clicked(); _t.sleep(0.4); pump(3)
+    check("callback recibe original y corregido", calls.get("corr") == ("Los prótesis de Amazon.", "Los proxys de Amazon."), str(calls.get("corr")))
+    check("estado muestra el mensaje del callback", "Guardada" in ui.correction_status.cget("text"), ui.correction_status.cget("text"))
+    check("botón reactivado", ui.correction_btn.cget("state") == "normal")
+    ui.set_correction_status("3 correcciones guardadas este mes."); pump(2)
+
     print("── Setters thread-safe ──")
     ui.set_backend("CUDA float16"); ui.set_transcription("Hola mundo"); ui.set_status("idle")
     ui.set_history(["uno", "dos"]); ui.set_gpu_pack_button("⚡ Descargar aceleración NVIDIA")
@@ -117,6 +131,7 @@ def main():
     check("rebuild conserva botón GPU", bool(ui.gpu_pack_btn.winfo_manager()))
     check("rebuild conserva licencia", "30" in ui.license_state_label.cget("text"))
     check("rebuild conserva micro", "Micrófono X" in ui.mic_menu.get())
+    check("rebuild conserva estado de correcciones", "3 correcciones" in ui.correction_status.cget("text"), ui.correction_status.cget("text"))
     check("callback de tema llamado", calls.get("theme", 0) >= 1)
 
     print("── Callbacks ──")

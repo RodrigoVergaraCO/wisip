@@ -81,6 +81,26 @@ décimas de segundo por párrafo. Modelos: OPUS-MT de Helsinki-NLP (CC-BY-4.0)
 convertidos a CTranslate2 int8. Mientras traduces, la barra flotante muestra
 "EN" o "ES" en vez del punto de grabación.
 
+## Corregir un dictado (y que Wisip aprenda)
+
+El cuadro "Última transcripción" de Inicio es editable. Si algo salió mal:
+
+1. Corrige el texto en el cuadro.
+2. Pulsa **Guardar corrección** (o Ctrl + Enter dentro del cuadro).
+
+Se guarda en `%APPDATA%\local-voice-typer\logs\correcciones-AAAA-MM.jsonl`
+(texto original, corregido, pares mal → bien, idioma, modelo) y el audio del
+dictado en `logs\correcciones\<id>.wav`, siempre que el dictado corregido sea
+el último. Nada sale del PC.
+
+- **Vocabulario → Analizar mis dictados** muestra primero tus correcciones
+  con la forma correcta ya rellenada: un clic y queda como regla personal.
+- `python scripts/analyze_corrections.py` imprime el informe (sustituciones
+  recurrentes, borrados, añadidos, últimas correcciones) para revisarlo con
+  la IA y decidir qué pasa al diccionario general.
+- Los WAV con su texto corregido son el set de evaluación: sirven para medir
+  la precisión de un modelo o configuración con números reales.
+
 ## Tray (bandeja de Windows)
 
 - Hacer clic en la X de la ventana **oculta** la app a la bandeja, no la cierra. El hotkey global sigue funcionando.

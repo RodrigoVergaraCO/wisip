@@ -42,3 +42,5 @@ jobs:
         run: python scripts/check_updater.py
       - name: Translator + multi-hotkey
         run: python scripts/check_translator.py
+      - name: Corrections (diff, JSONL, WAV, suggestions)
+        run: python scripts/check_corrections.py

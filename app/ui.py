@@ -108,6 +108,7 @@ class AppUI:
         # Pestaña Licencia (2.9.0). Opcionales.
         on_license_activate=None,
         on_license_deactivate=None,
+        on_correction_save=None,
         buy_url: str = "",
         # Dictar y traducir (2.12.0). Opcionales.
         on_translate_target_change=None,
@@ -148,6 +149,8 @@ class AppUI:
         self.on_input_device_change = on_input_device_change
         self.on_license_activate = on_license_activate
         self.on_license_deactivate = on_license_deactivate
+        self.on_correction_save = on_correction_save
+        self._last_correction_status = ""
         self._buy_url = buy_url or config.BUY_URL
         self._last_license: dict | None = None
         self.on_translate_target_change = on_translate_target_change
@@ -711,8 +714,28 @@ class AppUI:
             border_color=PRIMARY_BTN, border_width=1,
             font=self._fnt(13),
         )
-        self.transcription_box.pack(fill="x", padx=4, pady=(0, 12))
-        self.transcription_box.configure(state="disabled")
+        self.transcription_box.pack(fill="x", padx=4, pady=(0, 6))
+        # Editable: el usuario corrige lo que salió mal y lo guarda (2.13.0).
+        self.transcription_box.bind("<Control-Return>", lambda e: (self._correction_save_clicked(), "break")[1])
+
+        crow = ctk.CTkFrame(scroll, fg_color="transparent")
+        crow.pack(fill="x", padx=4, pady=(0, 2))
+        ctk.CTkLabel(
+            crow, text="¿Salió algo mal? Corrígelo en el cuadro y guárdalo: Wisip aprende de tus correcciones.",
+            font=self._fnt(11), text_color=TEXT_MUTED, anchor="w", justify="left", wraplength=430,
+        ).pack(side="left", fill="x", expand=True)
+        self.correction_btn = ctk.CTkButton(
+            crow, text="Guardar corrección", command=self._correction_save_clicked,
+            fg_color=BG_SURFACE_HIGH, hover_color=BG_SURFACE_HIGHEST, text_color=PRIMARY,
+            border_color=PRIMARY, border_width=1, font=self._fnt(12, bold=True),
+            width=150, height=30, corner_radius=6,
+        )
+        self.correction_btn.pack(side="right", padx=(8, 4))
+        self.correction_status = ctk.CTkLabel(
+            scroll, text=self._last_correction_status, font=self._fnt(11),
+            text_color=SECONDARY, anchor="w", justify="left", wraplength=600,
+        )
+        self.correction_status.pack(anchor="w", padx=8, pady=(0, 10))
 
         self.backend_label = ctk.CTkLabel(
             scroll, text="Backend: —",
@@ -1234,6 +1257,8 @@ class AppUI:
                 font=self._fnt(12), height=26,
             )
             fix_entry.pack(side="left", fill="x", expand=True)
+            if item.get("fix"):
+                fix_entry.insert(0, item["fix"])
             ctk.CTkButton(
                 act, text="CORREGIR",
                 command=lambda w=word, e=fix_entry, c=card: self._vocab_fix_suggestion(w, e, c),
@@ -1748,7 +1773,6 @@ class AppUI:
             try:
                 self.transcription_box.configure(state="normal")
                 self.transcription_box.insert("1.0", self._last_transcription)
-                self.transcription_box.configure(state="disabled")
             except Exception:
                 pass
         try:
@@ -1823,6 +1847,37 @@ class AppUI:
 
     def set_transcription(self, text: str):
         self._ui_queue.put(("trans", text))
+
+    def set_correction_status(self, text: str):
+        self._ui_queue.put(("corr_status", text or ""))
+
+    def _correction_save_clicked(self):
+        """Guarda la edición del cuadro "Última transcripción" como corrección
+        (original → corregido) vía on_correction_save, en un hilo."""
+        try:
+            corrected = self.transcription_box.get("1.0", "end").strip()
+        except Exception:
+            return
+        original = (self._last_transcription or "").strip()
+        if not corrected or corrected == original:
+            self.set_correction_status("No hay cambios que guardar: edita el texto del cuadro primero.")
+            return
+        if not self.on_correction_save:
+            return
+        self.correction_btn.configure(state="disabled")
+        self.set_correction_status("Guardando…")
+
+        def worker():
+            try:
+                msg = self.on_correction_save(original, corrected)
+            except Exception as e:
+                msg = f"No se pudo guardar: {e}"
+            else:
+                self._last_transcription = corrected
+            self.set_correction_status(msg or "Corrección guardada ✓")
+            self._ui_queue.put(("corr_btn", "normal"))   # Tk solo desde el hilo principal
+
+        threading.Thread(target=worker, daemon=True).start()
 
     def set_button_text(self, text: str):
         self._ui_queue.put(("btn", text))
@@ -2022,7 +2077,17 @@ class AppUI:
                     self.transcription_box.configure(state="normal")
                     self.transcription_box.delete("1.0", "end")
                     self.transcription_box.insert("1.0", payload)
-                    self.transcription_box.configure(state="disabled")
+                elif kind == "corr_status":
+                    self._last_correction_status = payload
+                    try:
+                        self.correction_status.configure(text=payload)
+                    except Exception:
+                        pass
+                elif kind == "corr_btn":
+                    try:
+                        self.correction_btn.configure(state=payload)
+                    except Exception:
+                        pass
                 elif kind == "btn":
                     self._last_btn_text = payload
                     prefix = self._BTN_ICONS.get(payload, "")
