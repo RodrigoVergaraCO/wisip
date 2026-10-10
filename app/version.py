@@ -2,7 +2,7 @@
 valor a EXE/installer.iss al compilar, y app/updater.py la compara con la
 última release de GitHub."""
 
-__version__ = "2.13.0"
+__version__ = "2.13.1"
 
 
 def version_tuple(v: str) -> tuple:

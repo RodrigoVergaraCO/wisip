@@ -3,6 +3,20 @@
 Fechas en formato AAAA-MM-DD. Las versiones corresponden al instalador
 (`EXE/installer.iss`).
 
+## 2.13.1 — 2026-10-09
+
+- **"Cambiar tecla" podía dejar de funcionar hasta reiniciar.** La captura
+  usaba `keyboard.read_hotkey`, que lanza "Can only normalize non-empty
+  string names" si una tecla sin nombre (multimedia, fantasma, una que la
+  librería dio por pulsada y nunca por soltada) está en su tabla de teclas
+  pulsadas; cada intento abortaba al instante. Captura propia
+  (`hotkeys.capture_hotkey`): ignora teclas sin nombre, reconoce los
+  modificadores por scan code (también con nombres en español), devuelve la
+  tecla física aunque Shift cambie su carácter ('|' y no '°'), Esc cancela y
+  vence a los 60 s.
+- Diccionarios: `pichelado/a/s` → pixelado, `celulo` → cédula,
+  `angularj` → AngularJS.
+
 ## 2.13.0 — 2026-09-24
 
 - **Corrige y Wisip aprende** (`app/corrections.py`): el cuadro "Última

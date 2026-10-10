@@ -177,6 +177,21 @@ def main():
               hk.canonical_hotkey("Mayús+Bloq Mayús") == "shift+capslock", hk.canonical_hotkey("Mayús+Bloq Mayús"))
         check("canonical_hotkey('|') == '|'", hk.canonical_hotkey("|") == "|")
         m.stop()
+        # 8) Captura propia del atajo (sustituye a keyboard.read_hotkey).
+        D, U = hk.keyboard.KEY_DOWN, hk.keyboard.KEY_UP
+        cap = hk._capture_from([_Ev("ctrl", D, 29), _Ev("|", D, 41), _Ev("|", U, 41)])
+        check("captura ctrl+|", cap == "ctrl+|", str(cap))
+        cap = hk._capture_from([_Ev("mayusculas", D, 42), _Ev("windows izquierda", D, 91), _Ev("windows izquierda", U, 91)])
+        check("captura con nombres en español → shift+windows", cap == "shift+windows", str(cap))
+        cap = hk._capture_from([_Ev(None, D, -232), _Ev(None, U, -232), _Ev("f8", D, 66), _Ev("f8", U, 66)])
+        check("tecla sin nombre (fantasma) no rompe la captura", cap == "f8", str(cap))
+        cap = hk._capture_from([_Ev("a", U, 30), _Ev("f9", D, 67), _Ev("f9", U, 67)])
+        check("UP suelto previo se ignora", cap == "f9", str(cap))
+        cap = hk._capture_from([_Ev("ctrl", D, 29), _Ev("escape", D, 1)])
+        check("Esc cancela → None", cap is None)
+        check("iterador vacío → None", hk._capture_from([]) is None)
+        cap = hk._capture_from([_Ev("ctrl", D, 29), _Ev("ctrl", D, 29), _Ev("space", D, 57), _Ev("space", U, 57)])
+        check("repeticiones de una tecla no se duplican", cap == "ctrl+space", str(cap))
     finally:
         hk._mask_win_key = orig_mask
 

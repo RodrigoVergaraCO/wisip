@@ -49,6 +49,9 @@ CASES = [
     # --- deben mejorar (fase 2: degradados por el modelo) ---
     ("estoy en Python con custom thinker, pyautogui y pyperclip.", "CustomTkinter"),
     ("React next.js y note.js", "Node.js"),
+    ("los bordes se ven muy pichelados y el input de celulo de ciudadanía", "pixelados"),
+    ("los bordes se ven muy pichelados y el input de celulo de ciudadanía", "cédula"),
+    ("este funciona con angularj y es la primera versión", "AngularJS"),
     ("que Wism no se corte cuando diga inglés.", "Wisip"),
     ("Mi correo puede ser juanperezarroba.hotmail.com.",
      "juanperez@hotmail.com"),

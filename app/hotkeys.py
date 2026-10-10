@@ -1,3 +1,4 @@
+import queue
 import threading
 import unicodedata
 
@@ -74,6 +75,79 @@ def _canonical_key(event) -> str:
         if sc < 0 and -sc in _VK_TO_KEY:
             return _VK_TO_KEY[-sc]
     return _canonicalize_event_name(getattr(event, "name", None) or "")
+
+
+def _name_for_scan(scan_code: int) -> str:
+    """Nombre de la tecla según Windows para un scan code físico (sin
+    modificadores): 'ctrl', '|', 'f8'… Vacío si no se puede."""
+    try:
+        if not isinstance(scan_code, int) or scan_code <= 0:
+            return ""
+        import ctypes
+        buf = ctypes.create_unicode_buffer(64)
+        ext = 1 if scan_code > 0xFF else 0
+        n = ctypes.windll.user32.GetKeyNameTextW(((scan_code & 0xFF) << 16) | (ext << 24), buf, 64)
+        return _fold(buf.value) if n > 0 else ""
+    except Exception:
+        return ""
+
+
+def _capture_from(events, is_cancel=None) -> str | None:
+    """Lógica de captura sobre un iterable de eventos (testeable sin teclado).
+    Acumula las teclas que bajan; al primer KEY_UP de una tecla que vimos
+    bajar devuelve el chord canónico ('ctrl+|', 'shift+windows', 'f8').
+    Esc cancela → None. Las teclas sin nombre (fantasma, multimedia, una
+    atascada en la librería) se ignoran en vez de romper la captura."""
+    pressed: dict = {}   # scan_code -> nombre canónico, en orden de pulsación
+    for e in events:
+        name = _canonical_key(e)
+        sc = getattr(e, "scan_code", None)
+        if not name and isinstance(sc, int) and sc > 0:
+            name = _name_for_scan(sc)
+        if e.event_type == keyboard.KEY_DOWN:
+            if name in ("escape", "esc"):
+                return None
+            if not name:
+                continue
+            # Con Shift pulsado la librería nombra la tecla por su carácter
+            # desplazado ('°' en vez de '|'); el atajo debe ser la tecla física.
+            if name not in _MODIFIERS and "shift" in pressed.values() and len(name) == 1 and isinstance(sc, int) and sc > 0:
+                base = _name_for_scan(sc)
+                if len(base) == 1:
+                    name = base
+            if name not in pressed.values():
+                pressed[sc if sc is not None else name] = name
+        else:
+            if not pressed:
+                continue   # UP de algo que no vimos bajar: ignorar
+            names = list(dict.fromkeys(pressed.values()))
+            mods = [n for n in names if n in _MODIFIERS]
+            others = [n for n in names if n not in _MODIFIERS]
+            return "+".join(mods + others)
+    return None
+
+
+def capture_hotkey(timeout: float | None = None) -> str | None:
+    """Bloquea hasta que el usuario pulsa y suelta una tecla o combinación
+    (hook propio, sin suprimir nada). None si cancela con Esc o vence el
+    timeout. Sustituye a keyboard.read_hotkey, que lanzaba
+    "Can only normalize non-empty string names" si una tecla sin nombre
+    quedaba marcada como pulsada."""
+    q: queue.Queue = queue.Queue()
+    handle = keyboard.hook(q.put)
+    try:
+        def _events():
+            while True:
+                try:
+                    yield q.get(timeout=timeout)
+                except queue.Empty:
+                    return
+        return _capture_from(_events())
+    finally:
+        try:
+            keyboard.unhook(handle)
+        except Exception:
+            pass
 
 
 def canonical_hotkey(hotkey: str) -> str:

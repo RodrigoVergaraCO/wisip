@@ -958,8 +958,8 @@ class Controller:
 
             new_hk = None
             try:
-                import keyboard as _kb
-                new_hk = _kb.read_hotkey(suppress=False)
+                from app.hotkeys import capture_hotkey
+                new_hk = capture_hotkey(timeout=60)
             except Exception as e:
                 self._log(f"[hotkey] error leyendo nueva tecla: {e}")
 
